@@ -52,8 +52,10 @@ skills/triage/SKILL.md           /fixcrash:triage: top issues of the latest vers
 skills/fix/SKILL.md              /fixcrash:fix <issue>: the loop
 agents/reproducer.md             subagent: worktree at the crashing commit, writes the failing test
 hooks/hooks.json                 PreToolUse guard: no PR without a valid verify receipt
-bin/fixcrash                     verify | commit-for-version | symbolicate (RN)
-src/, test/                      TypeScript behind bin/fixcrash, run directly by Node (type stripping), node:test
+bin/fixcrash                     verify | commit-for-version | receipt (done); symbolicate (RN, later)
+src/, test/                      TypeScript behind bin/fixcrash, run directly by Node 24 (type stripping), node:test
+package.json, tsconfig.json      dev only (tsc for type checks); no runtime dependencies
+.git/fixcrash/                   verify's state in the user's repo: worktree, receipts/<sha>.json, logs, lock
 testbed/android/                 sample app with seeded crashes, used as the eval
 ```
 
@@ -90,15 +92,19 @@ The Claude Code plugin format and the Firebase MCP tools both change fast, so do
 
 Record verified findings with a date in `docs/RESEARCH.md` §7 "Verified facts".
 
-## Commands (planned: update once implemented)
+## Commands
 
 ```bash
-claude plugin validate .            # manifest, component paths, MCP entries
-claude --plugin-dir .               # Claude Code with the plugin loaded from this checkout
-node --test test/                   # unit tests: verify, receipt, redaction, commit-for-version
-bin/fixcrash verify --test <id>     # fail-before / pass-after / suite-green, writes the receipt
-bin/fixcrash commit-for-version <display> <build>   # crashing version -> commit
+npm test                            # unit tests (node --test 'test/**/*.test.ts'): verify, receipt, stack, JUnit, version
+npm run typecheck                   # tsc, no emit
+bin/fixcrash verify --issue <id> --test <Class.method> --exception <type> --frame <symbol> --base <commit> [--from <commit>] [--project-dir <dir>]
+bin/fixcrash receipt                # the receipt for HEAD, exit 1 if none is valid
+bin/fixcrash commit-for-version <display> <build> [--revision <sha>] [--tag-pattern <p>]...
+claude plugin validate .            # manifest, component paths, MCP entries (from step 3)
+claude --plugin-dir .               # Claude Code with the plugin loaded from this checkout (from step 3)
 ```
+
+`verify` with Gradle needs a JDK: `JAVA_HOME`, `java` on PATH, or Android Studio's bundled JDK, which it finds by itself.
 
 ## Definition of done for any change
 

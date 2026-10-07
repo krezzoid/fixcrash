@@ -3,3 +3,5 @@
 # Firebase app config: never committed (CLAUDE.md, rule 8)
 google-services.json
 GoogleService-Info.plist
+
+node_modules/

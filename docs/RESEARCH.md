@@ -104,9 +104,13 @@ These end in an honest report. The plugin's value depends on the share of the fi
   - A `PreToolUse` hook refuses PR creation without a receipt for HEAD.
   - Prompts describe the loop; code enforces the rule.
 - **Same failure, not any failure.** The test must fail with the crash's exception type, and its stack must hit the crash's top app frame. A test failing for another reason doesn't count.
+  - As implemented (step 2): some throwable in the cause chain (not a suppressed one) has the crash's exception type; the blame frame's symbol is on its stack; no frame above it comes from a test source file. The last rule rejects an exception thrown by a stub or a fake. The message is never compared.
+  - "Top app frame" is approximated by "on the stack, with no test code above it": telling app frames from library frames would need the app's package list.
 - **Version-exact reproduction.**
   - The crashing commit comes from `buildStamp` or a release-tag pattern from `userConfig`.
   - Reproduce in a `git worktree`. Fix on the default branch and re-run the test there.
+  - `verify` overlays the same test files from the fix commit on the crashing commit (base) and on the commit the fix starts from, so the test must compile against the crashing version's API. A test that passes at the fix's starting point means the crash may already be fixed there: no receipt.
+  - `verify` runs everything in its own worktree, `.git/fixcrash/worktree`, from committed content. The receipt, logs and lock live next to it in `.git/fixcrash/`.
 - **Bounded loop:**
   - N hypotheses and M test attempts per issue;
   - then a report with evidence and the missing data ("add a custom key X", "log Y before Z").
@@ -187,6 +191,24 @@ These end in an honest report. The plugin's value depends on the share of the fi
   - Auth: the Firebase CLI login is enough. Every tool call needs `appId`: from `google-services.json` (`client_info.mobilesdk_app_id`) or `firebase apps:list ANDROID`.
   - Events show the model `user.id`, `installationUuid`, `customKeys`, `logs` and Analytics `breadcrumbs` as is. Redaction (rule 5) applies to everything the agent writes.
   - Logs and breadcrumbs are written asynchronously: the last ones before a crash can be missing.
+
+**2026-10-07: `fixcrash verify` on the testbed (step 2)** (Gradle 9.6, Node 24.21)
+
+- **Gradle test reports**
+  - JUnit XML in `<module>/build/test-results/testDebugUnitTest/TEST-<class>.xml`.
+  - A failure is `<failure type="<exception class>">` with the full stack trace as its body, JUnit and Gradle worker frames included.
+  - JDK frames carry module prefixes (`java.base/`, `jdk.proxy1/`).
+  - The `hostname` attribute holds the machine name: scrubbed in committed fixtures.
+- **Building in a worktree**
+  - Gradle builds and runs tests in a linked worktree under `.git/`.
+  - With a warm daemon, a targeted test in that worktree takes 1 to 2 s, and a whole `verify` on the testbed about 3 s.
+  - With the google-services plugin, unit tests need `google-services.json`: `processDebugGoogleServices` runs first and looks in `app/src/debug/`, `app/src/` and `app/`. Git ignores it, so `verify` copies it and `local.properties` from the checkout.
+  - The Gradle wrapper needs a JDK. On a Mac with only Android Studio, Claude Code's shell has no `java` and no `JAVA_HOME`; `verify` then uses Android Studio's bundled JDK.
+- **Writing the reproducing test**
+  - A test written against the fixed API doesn't compile at the crashing commit (`Null cannot be a value of a non-null type`). It has to use the crashing version's API.
+- **Node**
+  - Node 24.21 runs the `.ts` sources with no flag and no warning. `import.meta.main` is available.
+  - `node --test` takes a glob (`'test/**/*.test.ts'`), not a directory.
 
 **2026-10-07: React Native Firebase.** JS errors go through `recordError` (also the global handler). The JS stack is converted to a mock native exception. Line numbers are relative to the bundle after transpilation and minification, so source maps have to be kept and applied by the developer.
 

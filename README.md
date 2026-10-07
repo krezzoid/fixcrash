@@ -9,7 +9,7 @@ A Claude Code plugin that turns a Firebase Crashlytics crash into a **proven** f
 
 If it can't reproduce the crash, it says so: what it tried, what it suspects, and what data is missing. It opens no pull request.
 
-> **Status: design done, no code yet.** The Android spike is next. Commands and install steps below are the plan, not something you can run today. See [Roadmap](#roadmap).
+> **Status: the proof works, the plugin doesn't exist yet.** `fixcrash verify` proves fixes on the Android testbed. The skills and the PR guard are next. Usage and install steps below are the plan. See [Roadmap](#roadmap).
 
 ## Why
 
@@ -35,6 +35,19 @@ flowchart TD
   G -- no --> F
   G -- yes, receipt --> H[PR with the evidence<br/>Note on the issue]
 ```
+
+The proof is `fixcrash verify`. On the testbed's parser crash it gives:
+
+```text
+$ fixcrash verify --issue c43757a2… --test …ProfileParserTest.parsesProfileWithoutAvatar \
+    --exception java.lang.NullPointerException --frame …ProfileParser.parse --base 89da0c3
+base (crashing version) 89da0c31a144: ok: fails as the crash did: java.lang.NullPointerException at …ProfileParser.parse(ProfileParser.kt:12)
+from 89da0c31a144: same commit as base, not run again
+head (fix) 954cbb73fe9f: ok: the test passes; suite green: 4 tests, 0 skipped
+VERIFIED: receipt .git/fixcrash/receipts/954cbb73fe9f….json
+```
+
+It runs every check in its own worktree, from committed code, and never touches your checkout. A test that fails with another exception, misses the crash's frame, or throws from a stub gets no receipt.
 
 It runs on demand in your own Claude Code session, on your machine. There is no server, daemon or bot. Crash data comes from Google's [Firebase MCP server](https://firebase.google.com/docs/crashlytics/ai-assistance-mcp), which the plugin starts at a pinned `firebase-tools` version.
 
@@ -100,9 +113,9 @@ In Claude Code:
 | # | Step | State |
 |---|------|-------|
 | 0 | Research and design | ✅ |
-| 1 | Spike: Android testbed with three seeded crashes, read through Firebase MCP | next |
-| 2 | `fixcrash verify`: fail-before, pass-after, suite-green, receipt | |
-| 3 | Plugin: skills `triage` and `fix`, `reproducer` subagent, PR guard hook | |
+| 1 | Spike: Android testbed with three seeded crashes, read through Firebase MCP | ✅ |
+| 2 | `fixcrash verify`: fail-before, pass-after, suite-green, receipt | ✅ |
+| 3 | Plugin: skills `triage` and `fix`, `reproducer` subagent, PR guard hook | next |
 | 4 | Eval on the testbed | |
 | 5 | React Native | |
 | 6 | iOS (Swift) | |

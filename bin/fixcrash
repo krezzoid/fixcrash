@@ -1,0 +1,15 @@
+#!/bin/sh
+# fixcrash CLI. The plugin puts bin/ on the Bash tool's PATH.
+# Node 24+ runs the TypeScript sources directly (type stripping).
+set -e
+here=$(CDPATH= cd -- "$(dirname -- "$0")" && pwd)
+if ! command -v node >/dev/null 2>&1; then
+  echo "fixcrash: Node.js 24 or newer is required, and node is not on PATH" >&2
+  exit 2
+fi
+major=$(node -p 'process.versions.node.split(".")[0]')
+if [ "$major" -lt 24 ]; then
+  echo "fixcrash: Node.js 24 or newer is required, found $(node --version)" >&2
+  exit 2
+fi
+exec node "$here/../src/cli.ts" "$@"
