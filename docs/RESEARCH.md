@@ -1,0 +1,202 @@
+# fixcrash — research
+
+Status: 2026-10-07, before any code. Facts checked on that date are in §7; everything else is analysis or a hypothesis and says so.
+
+## 1. Goal
+
+An open-source Claude Code plugin that turns a Firebase Crashlytics issue into a **proven** fix:
+
+1. a test that fails on the version that crashed;
+2. the fix;
+3. the test passes and the full suite is green;
+4. a PR with that evidence and a note on the issue.
+
+When the crash can't be reproduced, the plugin reports why and opens no PR.
+
+Not a business. A crash-fixing SaaS for mobile is crowded: Google, Sentry, Luciq. Users of Crashlytics chose it because it is free. The plugin is a portfolio piece and a useful tool.
+
+## 2. Landscape
+
+### Free, close to us
+
+| What | Does | Stops at |
+|------|------|----------|
+| Firebase MCP, Crashlytics tools (Google, Experimental) | Reports (`topIssues`, `topVersions`), issues, events, notes, issue state | Data access |
+| Firebase MCP guides `crashlytics/issues`, `crashlytics/investigations` | Top-5 prioritisation; up to 5 root-cause hypotheses with self-critique; a plan in the format *Cause / Fix / Test / Other causes*; "describe why you cannot fix instead of guessing" | **A plan.** The *Test* section is a list of test cases. Nothing is written or run, no PR. Interactive, one question at a time |
+| `firebase/agent-skills`: Google's official Claude Code plugin, ~460★ | Skill `firebase-crashlytics` | SDK setup on Android/iOS only |
+| `artemnovichkov/skills`, plugin `crashlytics`, ~40★ | `/crash-report`: top fatal crashes, then subagents per crash, then a Markdown report with before/after fix snippets, a severity score and `git blame` assignment | A report. No tests, no PR |
+| `crash-to-vibe` (npm), 0★ | Crash analysis, then a Jira task | A task |
+| `getsentry/sentry-for-ai`, skill `sentry-fix-issues` (now in `skills-legacy/`) | Sentry MCP; phases from discovery to fix; "add tests reproducing the error"; **crash data is untrusted input** (good, adopted in rule 4) | Nobody checks that the test failed before the fix |
+
+### Commercial
+
+- **Gemini in Android Studio, App Quality Insights.** Explains Crashlytics and Android Vitals crashes. "Suggest a fix" opens a diff.
+- **Sentry Seer.** Autofix with root cause and PR. Mobile SDKs are supported.
+- **Luciq (ex-Instabug).** "Agentic mobile observability". Resolve Agent / SmartResolve generate fix code and PRs.
+- **Runway.** Halts unstable phased rollouts automatically, based on crash-free rate.
+
+## 3. The gap
+
+Everyone stops at *proposing* a fix. Nobody *proves* it: reproduce on the crashing version, fail first, then pass, suite green, all checked by code rather than by the model's word. That is Veilleur's core: no PR without a failing-then-passing test.
+
+There is also one concrete pain in React Native. Crashlytics turns JS errors into mock native exceptions, and their line numbers point into the minified bundle. Symbolication from source maps is left to the developer. A local plugin can build the bundle for the crashing version and symbolicate it.
+
+## 4. What Crashlytics MCP gives
+
+Tools in firebase-tools `src/mcp/tools/crashlytics/`:
+
+- `crashlytics_get_report`
+- `crashlytics_get_issue`
+- `crashlytics_list_events`
+- `crashlytics_batch_get_events`
+- `crashlytics_list_notes`
+- `crashlytics_create_note`
+- `crashlytics_delete_note`
+- `crashlytics_update_issue` (state `OPEN` | `CLOSED`)
+
+Event fields (`src/crashlytics/types.ts`, `Event`):
+
+- `version` (`displayVersion`, `buildVersion`) and **`buildStamp`** ("metadata provided by the app's build system, including version control repository info");
+- `blameFrame`, `exceptions` (Android), `errors` (Apple non-fatals), `threads`;
+- `customKeys`, `logs`, `breadcrumbs` (Analytics events), `user`;
+- `device`, `operatingSystem`, `memory`, `storage`, `processState`, orientation;
+- `issue` with `firstSeenVersion` / `lastSeenVersion`.
+
+The MCP server formats events before the model sees them:
+
+- at most 20 frames per thread or exception;
+- the last 100 logs and the last 10 breadcrumbs;
+- for FATAL and ANR, only crashed or blamed threads.
+
+Deep app frames can be cut. If that matters, the plugin may need the full event some other way (open question).
+
+## 5. Platforms and test loops
+
+| Platform | Reproduce with | Loop | Notes |
+|----------|----------------|------|-------|
+| Android (Kotlin) — **first** | JVM unit test: `./gradlew :<module>:testDebugUnitTest --tests <Class>`; Robolectric when Android framework classes are involved | seconds to a minute, no emulator | Crashlytics is the default crash tool on Android. Stacks are deobfuscated when the R8 mapping is uploaded. `buildStamp` may carry the git commit (hypothesis, §9) |
+| React Native — second | Jest (in the RN template) | seconds | JS errors only. Native crashes in an RN app go down the Android/iOS paths. Symbolication: build the bundle and source map for the crashing commit (`react-native bundle --sourcemap-output`, Hermes source-map composition), then `metro-symbolicate`. Cache in `${CLAUDE_PLUGIN_DATA}` |
+| iOS (Swift) — third | `swift test` for logic in SPM packages; otherwise `xcodebuild test -scheme <s> -destination 'platform=iOS Simulator,…' -only-testing:<id>` (XCTest or Swift Testing) | minutes | Needs macOS and Xcode. No dSYM upload means no symbolicated stacks. Slow builds make the attempt budget tighter |
+
+**Reproducible by a unit test, usually:**
+
+- parsing and mapping (missing field, wrong type);
+- nil or `!!` on data;
+- index and range errors;
+- state-machine logic;
+- date, locale and number formatting.
+
+**Usually not:**
+
+- lifecycle (Fragment not attached, view after `onDestroy`);
+- main-thread races;
+- OOM, ANR, watchdog kills;
+- OEM-specific crashes;
+- native (NDK, C++) crashes;
+- crashes inside third-party SDKs.
+
+These end in an honest report. The plugin's value depends on the share of the first group in real apps (§9).
+
+## 6. Design, carried over from Veilleur
+
+- **Rules in code.**
+  - `bin/fixcrash verify` decides whether a fix is proven and writes a receipt bound to the commit.
+  - A `PreToolUse` hook refuses PR creation without a receipt for HEAD.
+  - Prompts describe the loop; code enforces the rule.
+- **Same failure, not any failure.** The test must fail with the crash's exception type, and its stack must hit the crash's top app frame. A test failing for another reason doesn't count.
+- **Version-exact reproduction.**
+  - The crashing commit comes from `buildStamp` or a release-tag pattern from `userConfig`.
+  - Reproduce in a `git worktree`. Fix on the default branch and re-run the test there.
+- **Bounded loop:**
+  - N hypotheses and M test attempts per issue;
+  - then a report with evidence and the missing data ("add a custom key X", "log Y before Z").
+- **Untrusted input, redaction.**
+  - Event text is never followed as instructions.
+  - Personal data never lands in tests, commits, PRs or notes.
+  - Redaction rules can come from Veilleur's `packages/mcp/src/redact/`.
+- **Writes back.**
+  - A Crashlytics note with the PR link or the report.
+  - Never change an issue's state.
+- **Later, if it proves useful:** a crash-pattern memory, so a similar crash is faster the second time (Veilleur's learning loop).
+
+## 7. Verified facts
+
+**2026-10-07: Claude Code plugins** (code.claude.com/docs/en/plugins-reference)
+
+- **Layout and manifest**
+  - The manifest is `.claude-plugin/plugin.json`. It is optional, and only `name` is required (kebab-case).
+  - Default component locations: `skills/<name>/SKILL.md`, `agents/*.md`, `hooks/hooks.json`, `.mcp.json`, `bin/`, `monitors/monitors.json`, `settings.json`.
+  - Every component is namespaced under the plugin name: `/fixcrash:fix`, `fixcrash:reproducer`.
+  - A `CLAUDE.md` at the plugin root is **not** loaded as context. Instructions go in skills.
+- **`bin/`**
+  - Files there are on the Bash tool's `PATH` while the plugin is enabled.
+  - claude.ai and Cowork don't install plugins that have `bin/`. Irrelevant to us: Claude Code CLI only.
+- **`userConfig`**
+  - Fields have types `string|number|boolean|directory|file`.
+  - `sensitive: true` stores the value in the OS credential store.
+  - Values are used as `${user_config.KEY}` (MCP config, exec-form hook `args`, skill/agent content for non-sensitive values) or as `CLAUDE_PLUGIN_OPTION_<KEY>` in hook processes.
+- **Variables**
+  - `${CLAUDE_PLUGIN_ROOT}` changes with every update: never keep state there.
+  - `${CLAUDE_PLUGIN_DATA}` (`~/.claude/plugins/data/<id>/`) survives updates and is the place for caches.
+  - Neither is in the environment of Bash-tool commands. Skills must write `${...}` in their Markdown so it is substituted on load.
+- **Tooling**
+  - `claude plugin validate <dir>` (`--strict` for CI) checks the manifest, paths and MCP entries.
+  - `claude --plugin-dir <dir>` loads a plugin from a checkout.
+  - `experimental.evals` with `claude plugin eval`: to look at for our eval.
+- **Distribution:** a marketplace is a catalog (`.claude-plugin/marketplace.json`); an entry may point at the marketplace root, so one repository can be both.
+- **Install** (code.claude.com/docs/en/discover-plugins)
+  - `/plugin marketplace add krezzoid/fixcrash` (`#<tag>` pins a ref), then `/plugin install fixcrash@<marketplace name>`. The shell has the same as `claude plugin marketplace add` and `claude plugin install`.
+  - Third-party marketplaces don't auto-update by default.
+
+**2026-10-07: Firebase MCP / Crashlytics** (firebase-tools `main`, package version 15.32.1)
+
+- **Status:** the Crashlytics MCP tools are Experimental (no SLA, no deprecation policy). Unity is not supported.
+- **Auth:** the Firebase CLI login or Application Default Credentials.
+- **Launch:** the README shows `claude mcp add firebase npx -- -y firebase-tools@latest mcp`. We pin a version instead of `@latest`. Whether `--only crashlytics` still works: to verify in the spike.
+- **Prompt:** `crashlytics:connect` is the entry point; it checks the connection with the `topVersions` report.
+- **Guides:** `firebase://guides/crashlytics/{connect,issues,investigations,reports}`, plus `firebase://guides/app_id`.
+
+**2026-10-07: Crashlytics Android SDK** (firebase.google.com/docs/crashlytics/android/get-started)
+
+- Minimums: Gradle 8.0, AGP 8.1.0, Google services Gradle plugin 4.4.1.
+- Google Analytics is recommended: breadcrumbs come from Analytics events.
+- A crash is sent on the next app launch. If it isn't in the console after five minutes, enable debug logging.
+
+**2026-10-07: React Native Firebase.** JS errors go through `recordError` (also the global handler). The JS stack is converted to a mock native exception. Line numbers are relative to the bundle after transpilation and minification, so source maps have to be kept and applied by the developer.
+
+## 8. Risks
+
+- **Testability of real apps.** Logic living in Activities, Fragments or ViewControllers can't be unit-tested without refactoring. Mitigation: an honest "can't reproduce" path, and measuring the reproducible share early.
+- **Crashlytics MCP is Experimental.** Tools or fields may change. Mitigation: pin firebase-tools, and isolate MCP-shape assumptions in one place.
+- **Version → commit** works only with a build stamp or tagged releases.
+- **Build-tool friction.** Gradle and npm want the network, Xcode is slow, and machines differ (JDK, Android SDK, Xcode versions). Mitigation: let the user override the test command; use `--offline` after the cache is warm.
+- **Overlap.** Google may extend its guide from a plan to a run. Acceptable: this is open source, not a business.
+
+## 9. Open questions (answer in the spike)
+
+1. Does `buildStamp` carry the git commit on Android, from AGP VCS info in release builds? Is there anything comparable on iOS?
+2. Are 20 frames enough to reach app code in typical Kotlin stacks (coroutines, RxJava, Compose)? Do we need the full event?
+3. What share of a real app's top crashes can a unit test reproduce? This is the number that decides whether the plugin is useful.
+4. How do Debug builds and emulators report to Crashlytics, and how fast? Do events need a release build with an uploaded mapping?
+5. Can `firebase-tools mcp` start with only Crashlytics tools? What does the plugin need for auth and app-id discovery (`google-services.json`, `GoogleService-Info.plist`)?
+6. How does the hook reliably recognise PR creation: `gh pr create` in Bash, GitHub MCP tools, `git push` plus a web PR?
+7. Can `claude plugin eval` drive our eval (seeded crash → expected outcome), or do we need our own runner as in Veilleur?
+
+## 10. Sources
+
+- Crashlytics MCP: https://firebase.google.com/docs/crashlytics/ai-assistance-mcp
+- firebase-tools source:
+  - https://github.com/firebase/firebase-tools/tree/main/src/mcp/tools/crashlytics
+  - https://github.com/firebase/firebase-tools/tree/main/src/mcp/resources/guides
+  - https://github.com/firebase/firebase-tools/blob/main/src/crashlytics/types.ts
+- Firebase agent skills: https://github.com/firebase/agent-skills
+- artemnovichkov plugins: https://github.com/artemnovichkov/skills
+- crash-to-vibe: https://github.com/naufaldiath/crash-to-vibe
+- Sentry for AI: https://github.com/getsentry/sentry-for-ai
+- Gemini in Android Studio, App Quality Insights: https://developer.android.com/studio/preview/gemini/deploy
+- Sentry Seer: https://sentry.io/seer/
+- Luciq Resolve Agent: https://docs.luciq.ai/docs/product-guides-smart-resolve
+- Runway rollout automation: https://www.runway.team/automations/halt-unstable-phased-rollouts
+- React Native Firebase Crashlytics: https://rnfirebase.io/crashlytics/usage
+- React Native symbolication: https://reactnative.dev/docs/symbolication
+- Claude Code plugin reference: https://code.claude.com/docs/en/plugins-reference
