@@ -152,7 +152,7 @@ These end in an honest report. The plugin's value depends on the share of the fi
 
 - **Status:** the Crashlytics MCP tools are Experimental (no SLA, no deprecation policy). Unity is not supported.
 - **Auth:** the Firebase CLI login or Application Default Credentials.
-- **Launch:** the README shows `claude mcp add firebase npx -- -y firebase-tools@latest mcp`. We pin a version instead of `@latest`. Whether `--only crashlytics` still works: to verify in the spike.
+- **Launch:** the README shows `claude mcp add firebase npx -- -y firebase-tools@latest mcp`. We pin a version instead of `@latest`. Flags: see the spike below.
 - **Prompt:** `crashlytics:connect` is the entry point; it checks the connection with the `topVersions` report.
 - **Guides:** `firebase://guides/crashlytics/{connect,issues,investigations,reports}`, plus `firebase://guides/app_id`.
 
@@ -162,23 +162,49 @@ These end in an honest report. The plugin's value depends on the share of the fi
 - Google Analytics is recommended: breadcrumbs come from Analytics events.
 - A crash is sent on the next app launch. If it isn't in the console after five minutes, enable debug logging.
 
+**2026-10-07: Spike, Android testbed** (`testbed/android`; AGP 9.4.1, Gradle 9.6, Crashlytics SDK 20.1.1, crashlytics-gradle 3.0.8, google-services 4.5.0, BoM 34.19.0, firebase-tools 15.32.1, emulator API 37). Answers open questions 1, 2 (partly), 4 and 5.
+
+- **Commit in events (Q1)**
+  - The Crashlytics Gradle plugin copies AGP's VCS info into the string resource `com.google.firebase.crashlytics.version_control_info`; the SDK reads it at startup.
+  - AGP fills it in release builds only. Debug builds get an empty string.
+  - AGP looks for `.git` in the Gradle root directory only. With the Android project in a subdirectory (this repository, most React Native apps, monorepos) the value is `generate_error_reason: NO_SUPPORTED_VCS_FOUND`.
+  - With the Gradle root as the git root, the resource and `META-INF/version-control-info.textproto` carry `revision: "<full sha>"`.
+  - In events: such a release build's event has `buildStamp` with `revision: "<full sha>"` of the commit it was built from. Debug events have no `buildStamp`.
+  - Fallback for everything else: the release-tag pattern from `userConfig`.
+- **Frames (Q2, partly)**
+  - `blameFrame` comes computed: `symbol`, `file`, `line`, `owner: DEVELOPER`. Truncation to 20 frames (`... frames omitted ...`) doesn't hide it.
+  - Chained exceptions come with `Caused by:`. A crash in `onCreate` is `RuntimeException: Unable to start activity` caused by the real exception; Crashlytics groups the issue by the cause.
+  - The NPE message differs between ART and the JVM. The "same failure" check compares the exception type in the cause chain and `blameFrame`, never the message.
+  - Coroutine, RxJava and Compose stacks were not tested: still open, needs a real app.
+- **Debug builds and emulators (Q4)**
+  - Debug builds report from an emulator with no extra setup.
+  - SDK 20.1.1 enqueues a fatal report to DataTransport at crash time when the process lives long enough, otherwise on the next launch.
+  - Issues show up in the reports API 2 to 5 minutes after the crash.
+  - A new AGP 9 project limits R8 to `androidx.**`, `kotlin.**` and `kotlinx.**` (`optimization.packageScope`): app frames stay readable in release. The mapping is uploaded at `assembleRelease` anyway.
+- **MCP launch and data (Q5)**
+  - `firebase-tools mcp --tools a,b,c` exposes exactly the listed tools. The plugin leaves out `crashlytics_update_issue` and `crashlytics_delete_note`, so rule 7 holds in the server config, not only in a prompt. `--only crashlytics` is accepted too.
+  - `crashlytics_get_report` tells the agent to read `firebase://guides/crashlytics/reports` through `firebase_read_resources`: keep that tool in the list.
+  - Auth: the Firebase CLI login is enough. Every tool call needs `appId`: from `google-services.json` (`client_info.mobilesdk_app_id`) or `firebase apps:list ANDROID`.
+  - Events show the model `user.id`, `installationUuid`, `customKeys`, `logs` and Analytics `breadcrumbs` as is. Redaction (rule 5) applies to everything the agent writes.
+  - Logs and breadcrumbs are written asynchronously: the last ones before a crash can be missing.
+
 **2026-10-07: React Native Firebase.** JS errors go through `recordError` (also the global handler). The JS stack is converted to a mock native exception. Line numbers are relative to the bundle after transpilation and minification, so source maps have to be kept and applied by the developer.
 
 ## 8. Risks
 
 - **Testability of real apps.** Logic living in Activities, Fragments or ViewControllers can't be unit-tested without refactoring. Mitigation: an honest "can't reproduce" path, and measuring the reproducible share early.
 - **Crashlytics MCP is Experimental.** Tools or fields may change. Mitigation: pin firebase-tools, and isolate MCP-shape assumptions in one place.
-- **Version → commit** works only with a build stamp or tagged releases.
+- **Version → commit** works only with a build stamp or tagged releases. AGP writes the commit only when the Gradle root is the git root (§7), which rules out most React Native apps and monorepos.
 - **Build-tool friction.** Gradle and npm want the network, Xcode is slow, and machines differ (JDK, Android SDK, Xcode versions). Mitigation: let the user override the test command; use `--offline` after the cache is warm.
 - **Overlap.** Google may extend its guide from a plan to a run. Acceptable: this is open source, not a business.
 
 ## 9. Open questions (answer in the spike)
 
-1. Does `buildStamp` carry the git commit on Android, from AGP VCS info in release builds? Is there anything comparable on iOS?
-2. Are 20 frames enough to reach app code in typical Kotlin stacks (coroutines, RxJava, Compose)? Do we need the full event?
+1. ~~Does `buildStamp` carry the git commit on Android, from AGP VCS info in release builds?~~ Answered in §7 (spike). Is there anything comparable on iOS?
+2. Are 20 frames enough to reach app code in typical Kotlin stacks (coroutines, RxJava, Compose)? Do we need the full event? Partly answered in §7: `blameFrame` survives truncation; real-app stacks still unchecked.
 3. What share of a real app's top crashes can a unit test reproduce? This is the number that decides whether the plugin is useful.
-4. How do Debug builds and emulators report to Crashlytics, and how fast? Do events need a release build with an uploaded mapping?
-5. Can `firebase-tools mcp` start with only Crashlytics tools? What does the plugin need for auth and app-id discovery (`google-services.json`, `GoogleService-Info.plist`)?
+4. ~~How do Debug builds and emulators report to Crashlytics, and how fast? Do events need a release build with an uploaded mapping?~~ Answered in §7 (spike).
+5. ~~Can `firebase-tools mcp` start with only Crashlytics tools? What does the plugin need for auth and app-id discovery?~~ Answered in §7 (spike) for Android; `GoogleService-Info.plist` waits for iOS.
 6. How does the hook reliably recognise PR creation: `gh pr create` in Bash, GitHub MCP tools, `git push` plus a web PR?
 7. Can `claude plugin eval` drive our eval (seeded crash → expected outcome), or do we need our own runner as in Veilleur?
 

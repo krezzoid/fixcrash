@@ -1,0 +1,11 @@
+<resources>
+    <string name="app_name">fixcrash-testbed</string>
+    <string name="open_profile">Open profile</string>
+    <string name="load_more">Load more</string>
+    <string name="open_details">Open details</string>
+    <string name="profile_loaded">Hello, %1$s</string>
+    <string name="feed_loaded">Page %1$d: %2$d posts</string>
+    <string name="feed_end">No more posts</string>
+    <string name="details_loading">Loading details…</string>
+    <string name="details_loaded">Details loaded</string>
+</resources>
