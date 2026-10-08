@@ -10,3 +10,6 @@ scenario=${1:?usage: $0 parser|paging|lifecycle}
 adb shell am start -S -W -n "$app/.MainActivity" --es scenario "$scenario" >/dev/null
 sleep 3
 adb shell am start -S -W -n "$app/.MainActivity" >/dev/null
+# The relaunched app uploads the report a few seconds after it starts. Stopping it
+# sooner, as the next run's am start -S does, can lose the report.
+sleep 10

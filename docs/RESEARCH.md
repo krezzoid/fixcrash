@@ -236,6 +236,17 @@ These end in an honest report. The plugin's value depends on the share of the fi
 - **Auto mode** refuses to copy a captured event into a committed fixture, scrubbed or not. The test fixtures are written by hand, with synthetic values.
 - **Headless runs** (`claude -p`) from the agent's sandbox can't authenticate (`OAuth session expired`), so the plugin as a whole is tried in the user's own session (step 4).
 
+**2026-10-08: Events from the eval copy (step 4)** (the copy from `testbed/copy-android.sh`, its `v1.0` release APK, Crashlytics SDK 20.1.1, firebase-tools 15.32.1, emulator API 37)
+
+- **Build stamp end to end:** all three scenarios arrived with `buildStamp` `revision` set to the `v1.0` commit, and `fixcrash commit-for-version` resolved it in the copy.
+- **Same issue across builds:** the copy's release events landed in the issues the step 1 debug events made, under the same version `1.0 (1)`. The issue follows the stack, not the build type.
+- **`sampleEvent` is the newest event:** once a release event arrived, `get_issue`, its variant and `topIssues` all pointed `sampleEvent` at it. Before that it was the old debug event, which has no build stamp and leaves only the tag fallback.
+- **`crashlytics_list_events`** needs `filter.issueId` or `filter.issueVariantId`. Recent events across issues come from `topIssues` with a time interval.
+- **A report can get lost**
+  - The report is enqueued to DataTransport at crash time or on the next launch. The upload (`TRuntime.CctTransportBackend: Status Code: 200`) comes a few seconds later, mostly from the relaunched app, and can carry several reports at once.
+  - When the next scenario's `am start -S` stopped the relaunched app at once, its report never arrived (not there 10 minutes later). Triggered alone, it arrived.
+  - `trigger-crash.sh` now waits 10 s after the relaunch. With that, three scenarios back to back all arrived.
+
 **2026-10-07: React Native Firebase.** JS errors go through `recordError` (also the global handler). The JS stack is converted to a mock native exception. Line numbers are relative to the bundle after transpilation and minification, so source maps have to be kept and applied by the developer.
 
 ## 8. Risks

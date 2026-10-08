@@ -31,7 +31,7 @@ The unit tests in `app/src/test` pass and miss all three bugs.
 ./trigger-crash.sh parser     # or paging, lifecycle
 ```
 
-The script starts the scenario through adb, then relaunches the app so Crashlytics sends the report. The issue shows up in Crashlytics 2 to 5 minutes later.
+The script starts the scenario through adb, then relaunches the app and waits while Crashlytics sends the report. The issue shows up in Crashlytics 2 to 5 minutes later.
 
 ## Notes
 
