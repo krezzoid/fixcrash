@@ -51,5 +51,6 @@ NOT REPRODUCED
 - evidence: <what the code and the event show>
 - missing data: <what would decide it: a custom key, a log line, a device or OS pattern>
 - why a unit test may not reach it: <lifecycle, threading, native code, a third-party SDK; or "it should">
+- test setup that would reach it: <when a test library the module lacks would (Robolectric, fragment-testing): the build-file diff, test dependencies and test options; else "none">
 - test file left in the working tree: <path>
 ```

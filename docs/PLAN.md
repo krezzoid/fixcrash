@@ -35,7 +35,7 @@ The app, triggers and setup: `testbed/android/README.md`.
   - The guard turns on per repository, for sessions that read crash events and for `fixcrash/` branches. A PR from another branch in a later session isn't checked.
   - A Robolectric test counts as a JVM test, but adding Robolectric to a module is a build change, which `reproduce` and `verify` don't apply at the crashing commit (see the lifecycle scenario).
 - From step 4:
-  - Whether the agent may add Robolectric to a module that doesn't have it. The lifecycle crash needs it. `verify` would then have to apply the build change at the crashing commit and at the fix parent; today it overlays test sources only.
+  - Robolectric in a module that doesn't have it: for now the report carries the setup as a build-file diff. Revisit after the first real app; the options and the design for applying it with the user's consent are in `docs/adr/0001-test-libraries-the-module-lacks.md`.
   - The reproducer may answer NOT REPRODUCED without a single `fixcrash reproduce` run. Fine with a concrete reason, as in the lifecycle run, but a lazy answer looks the same. Requiring one run would put tool output in every report.
   - `claude plugin eval` (`RESEARCH.md` §9, question 7) wasn't tried: the eval ran by hand, measured with `eval/metrics.ts`.
   - The shortcut check (`src/shortcut.ts`) reads the new lines of the changed test files. A mock of the class under test (Mockito and MockK build it without its constructor) is caught by the reproducer's rules only, not in code. A shortcut in a helper outside the changed test files, or written another way, gets past it.

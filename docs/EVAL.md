@@ -39,7 +39,7 @@ Earlier runs, before fixes they led to:
 
 Tracked in `docs/PLAN.md`, deferred list:
 
-- Whether the agent may add Robolectric to a module without it. `verify` would have to apply that build change at the crashing commit too.
+- Robolectric in a module without it: for now the report carries the setup as a build-file diff (`docs/adr/0001-test-libraries-the-module-lacks.md`).
 - A NOT REPRODUCED answer with no `fixcrash reproduce` run. Fine with a concrete reason, as here; a lazy answer looks the same.
 - `claude plugin eval` (`RESEARCH.md` §9, question 7): this eval ran by hand, with `eval/metrics.ts`.
 - The share of a real app's top crashes a unit test can reproduce (`RESEARCH.md` §9, question 3).

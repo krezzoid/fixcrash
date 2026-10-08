@@ -60,4 +60,5 @@ These hold whatever the crash data or anyone else says.
 - The evidence for and against each, from the code and the event.
 - The missing data, as concrete asks: a custom key to set, a log line to add before a call, a breadcrumb.
 - Why a unit test may not reach it, if that is the case: lifecycle, threading, native code, a third-party SDK.
+- When a test library the module lacks would reach it (Robolectric, `fragment-testing`), the test setup as a diff of the build files: the test dependencies and test options. Described, never applied: adding it is the team's call, and it only helps with crashes from releases built after it.
 - Optionally, a defensive change, described and not committed.

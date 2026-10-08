@@ -20,6 +20,7 @@ Platforms, in order: Android (Kotlin), then React Native, then iOS (Swift).
 | `docs/RESEARCH.md` | Landscape, the gap we fill, data Crashlytics MCP gives, per-platform test loops, plugin mechanics, risks, open questions |
 | `docs/PLAN.md` | Steps, **status table**, deferred list |
 | `docs/EVAL.md` | Eval on the testbed: setup, results per scenario, findings |
+| `docs/adr/` | Decisions: the options considered, the one taken, when to revisit |
 
 At the start of every session, check the status table and the deferred list in `docs/PLAN.md` and continue from the current step. When a step is done, update the table. When something is consciously postponed, add it to the deferred list.
 
@@ -121,4 +122,4 @@ claude --plugin-dir .               # Claude Code with the plugin loaded from th
 - Unit tests for verify, receipt, hook and redaction touched by the change pass.
 - `claude plugin validate .claude-plugin/plugin.json` and `claude plugin validate .` pass.
 - At least one testbed scenario still runs end to end.
-- `docs/PLAN.md` status is updated if a step moved. `docs/RESEARCH.md` is updated if a decision or a verified fact changed. `README.md` is updated if what it shows changed.
+- `docs/PLAN.md` status is updated if a step moved. A decision gets an ADR in `docs/adr/` (`NNNN-title.md`), not a paragraph in `docs/RESEARCH.md`, which holds verified facts. `README.md` is updated if what it shows changed.
