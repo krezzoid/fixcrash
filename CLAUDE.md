@@ -19,6 +19,7 @@ Platforms, in order: Android (Kotlin), then React Native, then iOS (Swift).
 |------|---------------|
 | `docs/RESEARCH.md` | Landscape, the gap we fill, data Crashlytics MCP gives, per-platform test loops, plugin mechanics, risks, open questions |
 | `docs/PLAN.md` | Steps, **status table**, deferred list |
+| `docs/EVAL.md` | Eval on the testbed: setup, results per scenario, findings |
 
 At the start of every session, check the status table and the deferred list in `docs/PLAN.md` and continue from the current step. When a step is done, update the table. When something is consciously postponed, add it to the deferred list.
 

@@ -9,7 +9,7 @@ A Claude Code plugin that turns a Firebase Crashlytics crash into a **proven** f
 
 If it can't reproduce the crash, it says so: what it tried, what it suspects, and what data is missing. It opens no pull request.
 
-> **Status: the plugin is built, not yet evaluated.** Its proof and guard work on the Android testbed; the whole `/fixcrash:fix` loop is tried next, in the eval. Android only. Not published yet. See [Roadmap](#roadmap).
+> **Status: evaluated on the Android testbed.** Of its three seeded crashes, the two a unit test can reach end in a verified pull request, and the one it can't ends in a report and no pull request, each in under two minutes of agent time for under $1. An earlier run got a pull request through with a test that reached the crash by reflection; such tests are now refused ([docs/EVAL.md](docs/EVAL.md)). Not yet tried on a production app. Android only. Not published yet. See [Roadmap](#roadmap).
 
 ## Why
 
@@ -138,12 +138,12 @@ In Claude Code:
 | 1 | Spike: Android testbed with three seeded crashes, read through Firebase MCP | ✅ |
 | 2 | `fixcrash verify`: fail-before, pass-after, suite-green, receipt | ✅ |
 | 3 | Plugin: skills `triage` and `fix`, `reproducer` subagent, PR guard hook | ✅ |
-| 4 | Eval on the testbed | next |
-| 5 | React Native | |
+| 4 | Eval on the testbed: [results](docs/EVAL.md) | ✅ |
+| 5 | React Native | next |
 | 6 | iOS (Swift) | |
 | 7 | Publish | |
 
-Details: [docs/PLAN.md](docs/PLAN.md). Landscape, data, risks and open questions: [docs/RESEARCH.md](docs/RESEARCH.md).
+Details: [docs/PLAN.md](docs/PLAN.md). Eval results: [docs/EVAL.md](docs/EVAL.md). Landscape, data, risks and open questions: [docs/RESEARCH.md](docs/RESEARCH.md).
 
 ## Contributing
 
