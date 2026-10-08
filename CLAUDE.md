@@ -57,6 +57,7 @@ src/, test/                      TypeScript behind bin/fixcrash, run directly by
 package.json, tsconfig.json      dev only (tsc for type checks); no runtime dependencies
 .git/fixcrash/                   state in the user's repo: worktree, receipts/, events/, attempts/, sessions/, logs, lock
 testbed/android/                 sample app with seeded crashes, used as the eval
+testbed/copy-android.sh          copies it into a repository of its own, where the eval runs
 ```
 
 With the plugin loaded (`claude --plugin-dir .`), its hook also guards this repository: Bash commands that mention `.git/fixcrash` are refused, edits included. Edit files with the Edit and Write tools, and leave `.git/fixcrash` to the CLI.
