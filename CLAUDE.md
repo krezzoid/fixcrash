@@ -58,6 +58,7 @@ package.json, tsconfig.json      dev only (tsc for type checks); no runtime depe
 .git/fixcrash/                   state in the user's repo: worktree, receipts/, events/, attempts/, sessions/, logs, lock
 testbed/android/                 sample app with seeded crashes, used as the eval
 testbed/copy-android.sh          copies it into a repository of its own, where the eval runs
+eval/metrics.ts                  eval metrics from Claude Code session transcripts
 ```
 
 With the plugin loaded (`claude --plugin-dir .`), its hook also guards this repository: Bash commands that mention `.git/fixcrash` are refused, edits included. Edit files with the Edit and Write tools, and leave `.git/fixcrash` to the CLI.
@@ -105,6 +106,7 @@ bin/fixcrash reproduce --issue <id> --test <Class.method> --base <commit> --hypo
 bin/fixcrash verify --issue <id> --test <Class.method> --base <commit> [--from <commit>] [--project-dir <dir>]
 bin/fixcrash event <issue>          # what the hook recorded for an issue
 bin/fixcrash pr-body                # PR description from the receipt for HEAD
+node eval/metrics.ts <project dir>  # per session: time, tool calls, reproduced, verified, PR (--json for all)
 claude plugin validate .claude-plugin/plugin.json   # the plugin; one expected warning: CLAUDE.md at the plugin root
 claude plugin validate .            # the marketplace (with both manifests present, this checks only marketplace.json)
 claude --plugin-dir .               # Claude Code with the plugin loaded from this checkout

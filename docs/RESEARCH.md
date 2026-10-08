@@ -247,6 +247,19 @@ These end in an honest report. The plugin's value depends on the share of the fi
   - When the next scenario's `am start -S` stopped the relaunched app at once, its report never arrived (not there 10 minutes later). Triggered alone, it arrived.
   - `trigger-crash.sh` now waits 10 s after the relaunch. With that, three scenarios back to back all arrived.
 
+**2026-10-08: Claude Code session transcripts, for the eval metrics** (Claude Code 2.1.293; read from transcripts on this machine, the format is undocumented)
+
+- **Where**
+  - A session is `~/.claude/projects/<project path, non-alphanumerics as dashes>/<session id>.jsonl` (`CLAUDE_CONFIG_DIR` moves `~/.claude`).
+  - Subagents are in `<session id>/subagents/agent-<id>.jsonl`, each with an `agent-<id>.meta.json` holding `agentType` and the parent's `toolUseId`.
+- **Entries:** one JSON object per line, each with `type` (`user`, `assistant`, `system`, `attachment`, …) and most with a `timestamp`.
+  - A message the user typed is a `user` entry with `origin.kind: "human"`. Background task reports have `origin.kind: "task-notification"`; compaction summaries have no `origin`; skill text loaded for a command is `isMeta`.
+  - Tool results are `user` entries with `tool_result` blocks, matched to `tool_use` blocks by id.
+  - An assistant message is written as one line per content block, all with the same `message.id` and `usage`: tokens are counted once per id.
+  - A tool call a hook refused carries `permissionDecision: { decision: "reject", source: "hook" }`. Auto-mode approvals have `source: "config"`.
+  - A resumed session's file is not in time order, and can hold gaps of days inside one turn.
+- `eval/metrics.ts` reads all of this. Not yet seen in a transcript: how a typed `/fixcrash:fix <issue>` is stored; the script finds the issue id after `fixcrash:fix` in any form.
+
 **2026-10-07: React Native Firebase.** JS errors go through `recordError` (also the global handler). The JS stack is converted to a mock native exception. Line numbers are relative to the bundle after transpilation and minification, so source maps have to be kept and applied by the developer.
 
 ## 8. Risks
