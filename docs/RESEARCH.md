@@ -261,7 +261,13 @@ These end in an honest report. The plugin's value depends on the share of the fi
   - A typed `/fixcrash:fix <issue>` is a human entry, `<command-message>fixcrash:fix</command-message>` `<command-name>/fixcrash:fix</command-name>` `<command-args><issue></command-args>`, followed by the skill text as an `isMeta` entry.
   - A local command such as `/login` is a `system` entry with `subtype: "local_command"`. `subtype: "turn_duration"` entries carry `durationMs`, but with a background subagent their span is unclear, so the metrics don't use them.
   - The `Agent` tool runs a subagent in the background by default: the main agent ends its turn, and the subagent's report arrives as a task notification.
-- `eval/metrics.ts` reads all of this. Agent time is the union of the main agent's turns and each subagent's span, so a background subagent counts as work.
+  - A session can end with `{ type: "continued-in", continuedInSessionId }`. The continuation's file repeats every entry of the first, same uuids, under its own session id, and goes on from there.
+  - `cost-state` entries (no uuid) carry the session's running `totalCostUSD`, `totalDuration`, `totalAPIDuration`, `totalToolDuration` and `modelUsage` per model. They count more output tokens than the transcript's assistant messages hold (6245 against 4724 for the paging run): the cost covers calls the transcript doesn't show.
+  - `pr-link` entries record a pull request the session opened: `prNumber`, `prUrl`, `prRepository`.
+- `eval/metrics.ts` reads all of this.
+  - Agent time is the union of the main agent's turns and each subagent's span, so a background subagent counts as work. An `AskUserQuestion` call pauses the turn until its answer: that wait is the user's.
+  - The work ends at the last activity, not at a later `/exit`.
+  - A continued session is merged into the one it continues, copied entries counted once. Cost is the sum of each session's last `cost-state`.
 
 **2026-10-08: First eval run, parser (step 4)** (Claude Code 2.1.293, plugin loaded with `--plugin-dir`)
 
@@ -269,6 +275,11 @@ These end in an honest report. The plugin's value depends on the share of the fi
 - **Model switch.** The main agent ran on `claude-opus-5`, then on `claude-sonnet-5` from the turn after the reproducer reported. The user didn't switch it; Claude Code was updating itself at the time (2.1.293 to 2.1.294, whose default model is `claude-opus-5-5`). The reproducer, `model: inherit`, ran on Opus.
 - **The reproducer wrote its test with Bash** (a heredoc, then `python3`), not Write or Edit, so the hook's test-only check didn't see it. It touched only the test file (deferred list, step 3).
 - Commits get Claude Code's own attribution trailer, from the user's settings: the plugin doesn't add or remove it.
+
+**2026-10-08: Second eval run, paging (step 4)** (Claude Code 2.1.294, `claude-opus-5-5` throughout)
+
+- **The options fix works.** With the defaults written next to each `user_config` placeholder, the agent made no config search: `fixcrash app-id --project-dir .` first, `--tag-pattern 'v{display}'` passed explicitly.
+- **Asking before the push**, the agent used the `AskUserQuestion` tool rather than plain text. The reproducer wrote its test with Edit, so the hook's test-only check saw it, and ended with a `SubagentHandback` call.
 
 **2026-10-07: React Native Firebase.** JS errors go through `recordError` (also the global handler). The JS stack is converted to a mock native exception. Line numbers are relative to the bundle after transpilation and minification, so source maps have to be kept and applied by the developer.
 

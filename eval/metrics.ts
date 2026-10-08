@@ -15,7 +15,13 @@ const USAGE = `usage: node eval/metrics.ts [--json] <session.jsonl | project dir
 export interface Entry {
   type?: string;
   subtype?: string;
+  uuid?: string;
+  sessionId?: string;
   timestamp?: string;
+  /** On a `continued-in` entry: the session the conversation went on in. */
+  continuedInSessionId?: string;
+  /** On a `cost-state` entry: the session's cost so far. */
+  totalCostUSD?: number;
   isMeta?: boolean;
   origin?: { kind?: string };
   permissionDecision?: { decision?: string; source?: string };
@@ -54,7 +60,7 @@ export interface SessionMetrics {
   wallMs: number;
   /** Time the agent or a subagent was working. Permission prompts happen inside tool calls, so they count here. */
   agentMs: number;
-  /** wallMs - agentMs: waiting for the user's next message, or for a background task to report. */
+  /** wallMs - agentMs: waiting for the user's next message or answer, or for a background task to report. */
   idleMs: number;
   toolCalls: number;
   tools: Record<string, number>;
@@ -67,7 +73,11 @@ export interface SessionMetrics {
   pr?: string;
   notes: number;
   tokens: { input: number; output: number; cacheRead: number; cacheWrite: number };
+  /** As Claude Code reports it: includes calls the transcript doesn't show, such as the auto mode classifier. */
+  costUsd: number;
   models: string[];
+  /** Sessions the conversation was continued in, merged into this one. */
+  continuedIn: string[];
 }
 
 /** One entry per line; a line that doesn't parse (still being written) is skipped. */
@@ -125,6 +135,17 @@ function covered(spans: [number, number][]): number {
   return total;
 }
 
+/** Each session's last reported cost, summed over the sessions of a continued conversation. */
+function costOf(entries: Entry[]): number {
+  const bySession = new Map<string, number>();
+  for (const e of entries) {
+    if (e.type !== 'cost-state' || typeof e.totalCostUSD !== 'number') continue;
+    const id = e.sessionId ?? '';
+    bySession.set(id, Math.max(bySession.get(id) ?? 0, e.totalCostUSD));
+  }
+  return [...bySession.values()].reduce((a, b) => a + b, 0);
+}
+
 export function sessionMetrics(session: string, main: Entry[], subagents: Subagent[]): SessionMetrics {
   const all = [main, ...subagents.map((s) => s.entries)];
   const human = main.filter(isHuman);
@@ -132,7 +153,9 @@ export function sessionMetrics(session: string, main: Entry[], subagents: Subage
   const times = all.flat().map(time).filter((t) => t !== undefined);
   const first = human[0] ? time(human[0]) : undefined;
   const startMs = first ?? (times.length > 0 ? Math.min(...times) : 0);
-  const endMs = times.length > 0 ? Math.max(...times) : startMs;
+  // The end of the work, not of the session: /exit typed later doesn't count.
+  const busy = [...main.filter(isActivity), ...subagents.flatMap((s) => s.entries)].map(time).filter((t) => t !== undefined);
+  const endMs = Math.max(startMs, ...busy);
 
   // In time order: a resumed session's file isn't.
   const timeline = main
@@ -141,14 +164,27 @@ export function sessionMetrics(session: string, main: Entry[], subagents: Subage
     .sort((a, b) => a.t - b.t);
   // Busy spans: each turn of the main agent, from its start to its last activity, and
   // each subagent from its first entry to its last. A background subagent works between turns.
+  // A question the agent asks with AskUserQuestion pauses the turn until the answer comes back.
   const spans: [number, number][] = [];
   let turn: [number, number] | undefined;
+  let asking: string | undefined;
   for (const { e, t } of timeline) {
     if (startsTurn(e)) {
       if (turn) spans.push(turn);
       turn = [t, t];
+      asking = undefined;
+    } else if (asking) {
+      if (blocks(e).some((b) => b.type === 'tool_result' && b.tool_use_id === asking)) {
+        turn = [t, t];
+        asking = undefined;
+      }
     } else if (isActivity(e) && turn) {
       turn[1] = t;
+      asking = blocks(e).find((b) => b.type === 'tool_use' && b.name === 'AskUserQuestion')?.id;
+      if (asking) {
+        spans.push(turn);
+        turn = undefined;
+      }
     }
   }
   if (turn) spans.push(turn);
@@ -169,7 +205,7 @@ export function sessionMetrics(session: string, main: Entry[], subagents: Subage
     wallMs: endMs - startMs, agentMs, idleMs: endMs - startMs - agentMs,
     toolCalls: 0, tools: {}, toolErrors: 0, hookDenials: 0, subagents: [],
     reproduce: { runs: 0, reproduced: false }, verify: { runs: 0, verified: false }, notes: 0,
-    tokens: { input: 0, output: 0, cacheRead: 0, cacheWrite: 0 }, models: [],
+    tokens: { input: 0, output: 0, cacheRead: 0, cacheWrite: 0 }, costUsd: costOf(main), models: [], continuedIn: [],
   };
 
   const usage = new Map<string, Usage>();
@@ -228,18 +264,43 @@ export function sessionMetrics(session: string, main: Entry[], subagents: Subage
   return m;
 }
 
-/** A session file, with its subagents from `<session>/subagents/agent-*.jsonl` and their `.meta.json`. */
+function subagentsOf(file: string): Subagent[] {
+  const dir = join(dirname(file), basename(file, '.jsonl'), 'subagents');
+  if (!existsSync(dir)) return [];
+  return readdirSync(dir).filter((f) => f.endsWith('.jsonl')).sort().map((f) => {
+    const meta = join(dir, f.replace(/\.jsonl$/, '.meta.json'));
+    const type = existsSync(meta) ? (JSON.parse(readFileSync(meta, 'utf8')) as { agentType?: string }).agentType : undefined;
+    return { type: type ?? 'unknown', entries: parseTranscript(readFileSync(join(dir, f), 'utf8')) };
+  });
+}
+
+const continuedIn = (entries: Entry[]) => entries.find((e) => e.type === 'continued-in')?.continuedInSessionId;
+
+/**
+ * A session file, with its subagents from `<session>/subagents/agent-*.jsonl` and their
+ * `.meta.json`. A session that was continued in another (`continued-in`) is merged with it:
+ * the continuation repeats its entries, so they count once, by uuid.
+ */
 export function loadSession(file: string): SessionMetrics {
-  const session = basename(file, '.jsonl');
-  const dir = join(dirname(file), session, 'subagents');
-  const subagents = existsSync(dir)
-    ? readdirSync(dir).filter((f) => f.endsWith('.jsonl')).sort().map((f) => {
-      const meta = join(dir, f.replace(/\.jsonl$/, '.meta.json'));
-      const type = existsSync(meta) ? (JSON.parse(readFileSync(meta, 'utf8')) as { agentType?: string }).agentType : undefined;
-      return { type: type ?? 'unknown', entries: parseTranscript(readFileSync(join(dir, f), 'utf8')) };
-    })
-    : [];
-  return sessionMetrics(session, parseTranscript(readFileSync(file, 'utf8')), subagents);
+  // A copied entry carries the new session id: entries without a uuid are compared without it.
+  const key = (e: Entry) => e.uuid ?? JSON.stringify({ ...e, sessionId: undefined });
+  const files = [file];
+  let entries = parseTranscript(readFileSync(file, 'utf8'));
+  const seen = new Set(entries.map(key));
+  const subagents = subagentsOf(file);
+  for (let next = continuedIn(entries); next; ) {
+    const path = join(dirname(file), `${next}.jsonl`);
+    if (files.includes(path) || !existsSync(path)) break;
+    files.push(path);
+    const more = parseTranscript(readFileSync(path, 'utf8')).filter((e) => !seen.has(key(e)));
+    for (const e of more) seen.add(key(e));
+    entries = [...entries, ...more];
+    subagents.push(...subagentsOf(path));
+    next = continuedIn(more);
+  }
+  const m = sessionMetrics(basename(file, '.jsonl'), entries, subagents);
+  m.continuedIn = files.slice(1).map((f) => basename(f, '.jsonl'));
+  return m;
 }
 
 /** Where Claude Code keeps a project's sessions: its absolute path with non-alphanumerics as dashes. */
@@ -247,10 +308,13 @@ export function transcriptDir(projectDir: string, configDir = process.env.CLAUDE
   return join(configDir, 'projects', resolve(projectDir).replace(/[^a-zA-Z0-9]/g, '-'));
 }
 
+/** A project's sessions, without those that continue another: loadSession merges them in. */
 function sessionFiles(projectDir: string): string[] {
   const dir = transcriptDir(projectDir);
   if (!existsSync(dir)) throw new Error(`no Claude Code sessions for ${projectDir}: ${dir} doesn't exist`);
-  return readdirSync(dir).filter((f) => f.endsWith('.jsonl')).map((f) => join(dir, f));
+  const files = readdirSync(dir).filter((f) => f.endsWith('.jsonl')).map((f) => join(dir, f));
+  const continuations = new Set(files.map((f) => continuedIn(parseTranscript(readFileSync(f, 'utf8')))).filter(Boolean));
+  return files.filter((f) => !continuations.has(basename(f, '.jsonl')));
 }
 
 function duration(ms: number): string {
@@ -261,7 +325,7 @@ function duration(ms: number): string {
 const runs = (n: number) => `${n} run${n === 1 ? '' : 's'}`;
 
 export function table(rows: SessionMetrics[]): string {
-  const head = ['Session', 'Issue', 'Wall', 'Agent', 'Tool calls', 'Reproduced', 'Verified', 'PR', 'Hook denials', 'Output tokens'];
+  const head = ['Session', 'Issue', 'Wall', 'Agent', 'Tool calls', 'Reproduced', 'Verified', 'PR', 'Hook denials', 'Cost'];
   const lines = [`| ${head.join(' | ')} |`, `|${head.map(() => '---').join('|')}|`];
   for (const m of rows) {
     const inSubagents = m.subagents.reduce((n, s) => n + s.toolCalls, 0);
@@ -275,7 +339,7 @@ export function table(rows: SessionMetrics[]): string {
       m.verify.runs > 0 ? `${m.verify.verified ? 'yes' : 'no'}, ${runs(m.verify.runs)}` : '-',
       m.pr ?? 'none',
       String(m.hookDenials),
-      String(m.tokens.output),
+      `$${m.costUsd.toFixed(2)}`,
     ];
     lines.push(`| ${cells.join(' | ')} |`);
   }

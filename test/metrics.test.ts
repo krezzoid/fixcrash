@@ -2,7 +2,7 @@ import assert from 'node:assert/strict';
 import { writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { test } from 'node:test';
-import { type Entry, loadSession, parseTranscript, sessionMetrics, table, transcriptDir } from '../eval/metrics.ts';
+import { type Entry, loadSession, main as metricsMain, parseTranscript, sessionMetrics, table, transcriptDir } from '../eval/metrics.ts';
 import { tempDir, writeFiles } from './helpers.ts';
 
 const issue = '0123456789abcdef0123456789abcdef';
@@ -141,6 +141,55 @@ test('reads a session file and its subagents, skipping a line still being writte
   assert.equal(loadSession(join(dir, 'empty.jsonl')).toolCalls, 0);
 });
 
+test('merges a session with the one it was continued in, counting copied entries once', (t) => {
+  const config = tempDir(t);
+  const project = '/work/app';
+  const dir = transcriptDir(project, config);
+  const stamp = (es: Entry[], sessionId: string) => es.map((e, i) => ({ ...e, sessionId, uuid: e.uuid ?? (e.type === 'cost-state' ? undefined : `u${i}`) }));
+  const lines = (es: Entry[]) => es.map((e) => JSON.stringify(e)).join('\n');
+  const first = stamp([
+    human(0, `/fixcrash:fix ${issue}`),
+    // The agent asks before pushing: the 10 s until the answer are the user's.
+    call(1, 'm1', 'q1', 'AskUserQuestion', ''),
+    result(11, 'q1', 'Push and open the PR'),
+    call(12, 'm2', 'p1', 'Bash', 'fixcrash pr-body | gh pr create --title t --body-file -'),
+    result(14, 'p1', 'https://github.com/example/app/pull/3'),
+    say(15, 'm3'),
+    { type: 'cost-state', totalCostUSD: 0.4 },
+    { type: 'cost-state', totalCostUSD: 0.5 },
+    { type: 'continued-in', timestamp: at(60), continuedInSessionId: 'second' },
+  ], 'first');
+  const second = [
+    ...stamp(first.slice(0, -1), 'second'),
+    // Typed after the work was done: not part of it.
+    { type: 'user', timestamp: at(90), uuid: 'x1', sessionId: 'second', message: { content: '<command-name>/exit</command-name>' } },
+    { type: 'cost-state', sessionId: 'second', totalCostUSD: 0.1 },
+  ];
+  writeFiles(dir, {
+    'first.jsonl': lines(first),
+    'second.jsonl': lines(second),
+    'first/subagents/agent-a1.jsonl': lines([call(2, 's1', 'r1', 'Bash', 'ls'), result(3, 'r1', 'ok')]),
+  });
+
+  const m = loadSession(join(dir, 'first.jsonl'));
+
+  assert.deepEqual(m.continuedIn, ['second']);
+  assert.equal(m.wallMs, 15_000);
+  assert.equal(m.agentMs, (1 + 1 + 4) * 1000);
+  assert.equal(m.toolCalls, 3);
+  assert.equal(m.pr, 'https://github.com/example/app/pull/3');
+  assert.ok(Math.abs(m.costUsd - 0.6) < 1e-9, `cost ${m.costUsd}`);
+
+  t.mock.method(console, 'log');
+  const prev = process.env.CLAUDE_CONFIG_DIR;
+  process.env.CLAUDE_CONFIG_DIR = config;
+  t.after(() => (prev === undefined ? delete process.env.CLAUDE_CONFIG_DIR : (process.env.CLAUDE_CONFIG_DIR = prev)));
+  assert.equal(metricsMain([project]), 0);
+  const out = String((console.log as unknown as { mock: { calls: { arguments: unknown[] }[] } }).mock.calls[0]?.arguments[0]);
+  assert.match(out, /\| first \|/);
+  assert.doesNotMatch(out, /\| second \|/, 'the continuation is merged, not a row of its own');
+});
+
 test('finds a project directory under the config directory, every non-alphanumeric as a dash', () => {
   assert.equal(transcriptDir('/private/tmp/x.y/-z', '/home/u/.claude'), '/home/u/.claude/projects/-private-tmp-x-y--z');
 });
@@ -149,5 +198,5 @@ test('prints one table row per session', () => {
   const out = table([sessionMetrics('0123456789', main, [{ type: 'fixcrash:reproducer', entries: reproducer }])]);
 
   assert.match(out, /^\| Session \| Issue \| Wall \| Agent \|/);
-  assert.match(out, /\| 01234567 \| 01234567 \| 3m 23s \| 1m 13s \| 9 \(3 in subagents\) \| yes, 2 runs \| yes, 2 runs \| https:\/\/github.com\/example\/app\/pull\/7 \| 1 \| 100 \|/);
+  assert.match(out, /\| 01234567 \| 01234567 \| 3m 23s \| 1m 13s \| 9 \(3 in subagents\) \| yes, 2 runs \| yes, 2 runs \| https:\/\/github.com\/example\/app\/pull\/7 \| 1 \| \$0\.00 \|/);
 });
