@@ -13,7 +13,7 @@ Rank the crashes of the latest version, and say for each whether a JVM unit test
 
 ## Steps
 
-1. **App id.** Use `$ARGUMENTS` if given. Else `${user_config.app_id}` if it is not empty. Else run `fixcrash app-id --project-dir ${user_config.project_dir}` from the repository root. If it lists several ids, ask the user which one.
+1. **App id.** Use `$ARGUMENTS` if given. Else `${user_config.app_id}` if it is not empty. Else run `fixcrash app-id --project-dir ${user_config.project_dir}` from the repository root. If it lists several ids, ask the user which one. A value still written as a `user_config` placeholder is a plugin option that was never set: skip the app id one, and use `.` for the project directory.
 2. **Reports guide.** Read `firebase://guides/crashlytics/reports` with `firebase_read_resources`: the report tool requires it.
 3. **Latest version.** `crashlytics_get_report` with `report: topVersions`. Version display names look like `2.3 (230)`; the latest is the one with the highest build number in parentheses.
 4. **Top issues.** `crashlytics_get_report` with `report: topIssues`, `pageSize: 10`, and `filter.versionDisplayNames: [<latest>]`. If the latest version has no issues, drop the version filter and say so.

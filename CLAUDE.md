@@ -108,7 +108,7 @@ bin/fixcrash event <issue>          # what the hook recorded for an issue
 bin/fixcrash pr-body                # PR description from the receipt for HEAD
 node eval/metrics.ts <project dir>  # per session: time, tool calls, reproduced, verified, PR (--json for all)
 claude plugin validate .claude-plugin/plugin.json   # the plugin; one expected warning: CLAUDE.md at the plugin root
-claude plugin validate .            # the marketplace (with both manifests present, this checks only marketplace.json)
+claude plugin validate .            # the marketplace, then the plugin it lists (same expected warning, Claude Code 2.1.294+)
 claude --plugin-dir .               # Claude Code with the plugin loaded from this checkout
 ```
 

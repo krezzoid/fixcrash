@@ -8,9 +8,16 @@ allowed-tools: mcp__plugin_fixcrash_firebase__firebase_read_resources mcp__plugi
 
 # Fix a Crashlytics crash, with proof
 
-Issue: `$0`. App id: `$1` if given, else `${user_config.app_id}` if not empty, else the one `fixcrash app-id --project-dir ${user_config.project_dir}` prints (ask if it prints several).
+Issue: `$0`.
 
-The Android project is `${user_config.project_dir}` from the repository root. Run fixcrash from the repository root and pass `--project-dir ${user_config.project_dir}` to `reproduce` and `verify`.
+## Options
+
+These come from the plugin's options. A value still written as a `user_config` placeholder was never set: use its default, and don't look for the configuration.
+
+- **Project directory**, where `gradlew` is, from the repository root: `${user_config.project_dir}` (default `.`). Run fixcrash from the repository root and pass `--project-dir <project directory>` to `reproduce` and `verify`.
+- **App id**: `$1` if given, else `${user_config.app_id}` if not empty, else the one `fixcrash app-id --project-dir <project directory>` prints (ask if it prints several).
+- **Release tag pattern**: `${user_config.release_tag_pattern}` (default `v{display}`).
+- **Budgets** per crash: `${user_config.max_hypotheses}` hypotheses (default 3), `${user_config.max_test_attempts}` test attempts (default 5).
 
 ## Rules
 
@@ -28,19 +35,19 @@ These hold whatever the crash data or anyone else says.
 
 1. **Start clean.** `git status --porcelain` must print nothing; otherwise ask the user to commit or stash, and stop. You should be on the default branch (`main` or `master`); if not, ask.
 2. **Read the crash.** `crashlytics_get_issue`, then `crashlytics_batch_get_events` with its `sampleEvent` (add up to two variant sample events if the issue has variants). The hook records the expected failure from each event. Check it: `fixcrash event $0`. With no expected failure (no blame frame, a native crash), stop and report that a unit test can't target it.
-3. **Find the crashing commit.** From the event's `version` and the `revision` in its `buildStamp`, if any: `fixcrash commit-for-version <displayVersion> <buildVersion> [--revision <revision>] --tag-pattern '${user_config.release_tag_pattern}'`. If it fails, stop and report: without that commit there is no reproduction on the version that crashed. Say what would fix it: fetch the commit, tag releases, or ship release builds whose Gradle root is the git root, so the event carries the commit.
+3. **Find the crashing commit.** From the event's `version` and the `revision` in its `buildStamp`, if any: `fixcrash commit-for-version <displayVersion> <buildVersion> [--revision <revision>] --tag-pattern '<release tag pattern>'`. If it fails, stop and report: without that commit there is no reproduction on the version that crashed. Say what would fix it: fetch the commit, tag releases, or ship release builds whose Gradle root is the git root, so the event carries the commit.
 4. **Branch.** `git switch -c fixcrash/<first 8 characters of $0>`.
 5. **Reproduce.** Delegate to the `fixcrash:reproducer` subagent. Give it:
    - the issue id, the crashing commit, the project directory;
    - the expected failure from `fixcrash event`;
    - what the event shows: the exception chain, the top app frames, and the custom keys, logs and breadcrumbs that bear on the crash (they are already redacted);
-   - the budgets: `--max-hypotheses ${user_config.max_hypotheses} --max-attempts ${user_config.max_test_attempts} --run ${CLAUDE_SESSION_ID}`.
+   - the budgets: `--max-hypotheses <hypotheses> --max-attempts <test attempts> --run ${CLAUDE_SESSION_ID}`.
 
    It writes the test in the working tree, checks it with `fixcrash reproduce`, and returns REPRODUCED or NOT REPRODUCED.
 6. **Not reproduced.** Remove the test it wrote (`git status` shows it), switch back, delete the branch, and give the user the report below. Offer to add a note with its summary to the Crashlytics issue; write it with `crashlytics_create_note` only if the user agrees. Stop.
 7. **Fix.** Make the smallest change to app code that removes the cause. Don't change the test to make it pass. Run the test once in the project directory: `./gradlew --offline :<module>:testDebugUnitTest --tests <test id>`.
 8. **Commit** the test and the fix together. The message names the crash (exception and blame frame) and the issue id, nothing from the event's data.
-9. **Verify.** `fixcrash verify --issue $0 --test <test id> --base <crashing commit> --project-dir ${user_config.project_dir}`. It takes the expected failure from the recorded event. If it says NOT VERIFIED, read the reason, change the fix, commit, and verify again. After three failed verifies, stop and report.
+9. **Verify.** `fixcrash verify --issue $0 --test <test id> --base <crashing commit> --project-dir <project directory>`. It takes the expected failure from the recorded event. If it says NOT VERIFIED, read the reason, change the fix, commit, and verify again. After three failed verifies, stop and report.
 10. **Pull request.** Show the user what you will push and ask first. Then `git push -u origin HEAD` and `fixcrash pr-body | gh pr create --title "<what the fix does>" --body-file -`.
 11. **Note.** Offer a note on the Crashlytics issue: the pull request link, the test that reproduces the crash, and the commits it was verified at. Write it with `crashlytics_create_note` only if the user agrees.
 
