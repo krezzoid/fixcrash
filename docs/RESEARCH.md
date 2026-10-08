@@ -258,7 +258,17 @@ These end in an honest report. The plugin's value depends on the share of the fi
   - An assistant message is written as one line per content block, all with the same `message.id` and `usage`: tokens are counted once per id.
   - A tool call a hook refused carries `permissionDecision: { decision: "reject", source: "hook" }`. Auto-mode approvals have `source: "config"`.
   - A resumed session's file is not in time order, and can hold gaps of days inside one turn.
-- `eval/metrics.ts` reads all of this. Not yet seen in a transcript: how a typed `/fixcrash:fix <issue>` is stored; the script finds the issue id after `fixcrash:fix` in any form.
+  - A typed `/fixcrash:fix <issue>` is a human entry, `<command-message>fixcrash:fix</command-message>` `<command-name>/fixcrash:fix</command-name>` `<command-args><issue></command-args>`, followed by the skill text as an `isMeta` entry.
+  - A local command such as `/login` is a `system` entry with `subtype: "local_command"`. `subtype: "turn_duration"` entries carry `durationMs`, but with a background subagent their span is unclear, so the metrics don't use them.
+  - The `Agent` tool runs a subagent in the background by default: the main agent ends its turn, and the subagent's report arrives as a task notification.
+- `eval/metrics.ts` reads all of this. Agent time is the union of the main agent's turns and each subagent's span, so a background subagent counts as work.
+
+**2026-10-08: First eval run, parser (step 4)** (Claude Code 2.1.293, plugin loaded with `--plugin-dir`)
+
+- **`${user_config.*}` stays literal.** With `--plugin-dir` and no options set, the skill text kept `${user_config.project_dir}`, `${user_config.release_tag_pattern}`, `${user_config.max_hypotheses}` and the rest as is: the manifest defaults were not applied. `$0` and `${CLAUDE_SESSION_ID}` were substituted. The agent spent four tool calls looking for the config, then guessed `--project-dir .` and dropped the budget and tag-pattern flags, so the CLI's own defaults applied.
+- **Model switch.** The main agent ran on `claude-opus-5`, then on `claude-sonnet-5` from the turn after the reproducer reported, with no user action in the transcript. The reproducer, `model: inherit`, ran on Opus.
+- **The reproducer wrote its test with Bash** (a heredoc, then `python3`), not Write or Edit, so the hook's test-only check didn't see it. It touched only the test file (deferred list, step 3).
+- Commits get Claude Code's own attribution trailer, from the user's settings: the plugin doesn't add or remove it.
 
 **2026-10-07: React Native Firebase.** JS errors go through `recordError` (also the global handler). The JS stack is converted to a mock native exception. Line numbers are relative to the bundle after transpilation and minification, so source maps have to be kept and applied by the developer.
 

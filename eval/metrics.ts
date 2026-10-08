@@ -14,6 +14,7 @@ const USAGE = `usage: node eval/metrics.ts [--json] <session.jsonl | project dir
 
 export interface Entry {
   type?: string;
+  subtype?: string;
   timestamp?: string;
   isMeta?: boolean;
   origin?: { kind?: string };
@@ -51,10 +52,10 @@ export interface SessionMetrics {
   start: string;
   end: string;
   wallMs: number;
-  /** Time between turns: waiting for the user's next message, or for a background task to report. */
-  idleMs: number;
-  /** wallMs - idleMs. Permission prompts happen inside tool calls, so they stay in here. */
+  /** Time the agent or a subagent was working. Permission prompts happen inside tool calls, so they count here. */
   agentMs: number;
+  /** wallMs - agentMs: waiting for the user's next message, or for a background task to report. */
+  idleMs: number;
   toolCalls: number;
   tools: Record<string, number>;
   toolErrors: number;
@@ -104,11 +105,25 @@ const isHuman = (e: Entry) => e.type === 'user' && e.origin?.kind === 'human';
 
 const isToolResult = (e: Entry) => e.type === 'user' && blocks(e).some((b) => b.type === 'tool_result');
 
-/** What a turn starts with: a typed message, a task notification, a compaction summary. */
-const startsTurn = (e: Entry) => e.type === 'user' && !e.isMeta && !isToolResult(e);
+const isLocalCommand = (e: Entry) => e.type === 'system' && e.subtype === 'local_command';
 
-/** Entries that show the agent working: its messages, tool results, turn-end hooks. */
-const isActivity = (e: Entry) => e.type === 'assistant' || e.type === 'system' || isToolResult(e);
+/** What a turn starts with: a typed message or local command (/login), a task notification, a compaction summary. */
+const startsTurn = (e: Entry) => (e.type === 'user' && !e.isMeta && !isToolResult(e)) || isLocalCommand(e);
+
+/** Entries that show the agent working: its messages, tool results, turn-end bookkeeping. */
+const isActivity = (e: Entry) => e.type === 'assistant' || (e.type === 'system' && !isLocalCommand(e)) || isToolResult(e);
+
+/** Total length of the union of spans. */
+function covered(spans: [number, number][]): number {
+  let total = 0;
+  let end = -Infinity;
+  for (const [a, b] of [...spans].sort((x, y) => x[0] - y[0])) {
+    if (b <= end) continue;
+    total += b - Math.max(a, end);
+    end = b;
+  }
+  return total;
+}
 
 export function sessionMetrics(session: string, main: Entry[], subagents: Subagent[]): SessionMetrics {
   const all = [main, ...subagents.map((s) => s.entries)];
@@ -124,16 +139,24 @@ export function sessionMetrics(session: string, main: Entry[], subagents: Subage
     .map((e) => ({ e, t: time(e) }))
     .filter((x): x is { e: Entry; t: number } => x.t !== undefined && x.t >= startMs)
     .sort((a, b) => a.t - b.t);
-  let idleMs = 0;
-  let lastActivity: number | undefined;
+  // Busy spans: each turn of the main agent, from its start to its last activity, and
+  // each subagent from its first entry to its last. A background subagent works between turns.
+  const spans: [number, number][] = [];
+  let turn: [number, number] | undefined;
   for (const { e, t } of timeline) {
     if (startsTurn(e)) {
-      if (lastActivity !== undefined) idleMs += Math.max(0, t - lastActivity);
-      lastActivity = t;
-    } else if (isActivity(e)) {
-      lastActivity = t;
+      if (turn) spans.push(turn);
+      turn = [t, t];
+    } else if (isActivity(e) && turn) {
+      turn[1] = t;
     }
   }
+  if (turn) spans.push(turn);
+  for (const s of subagents) {
+    const ts = s.entries.map(time).filter((t) => t !== undefined);
+    if (ts.length > 0) spans.push([Math.max(startMs, Math.min(...ts)), Math.max(...ts)]);
+  }
+  const agentMs = covered(spans);
 
   const issues: string[] = [];
   for (const e of human) {
@@ -143,7 +166,7 @@ export function sessionMetrics(session: string, main: Entry[], subagents: Subage
 
   const m: SessionMetrics = {
     session, issues, start: new Date(startMs).toISOString(), end: new Date(endMs).toISOString(),
-    wallMs: endMs - startMs, idleMs, agentMs: endMs - startMs - idleMs,
+    wallMs: endMs - startMs, agentMs, idleMs: endMs - startMs - agentMs,
     toolCalls: 0, tools: {}, toolErrors: 0, hookDenials: 0, subagents: [],
     reproduce: { runs: 0, reproduced: false }, verify: { runs: 0, verified: false }, notes: 0,
     tokens: { input: 0, output: 0, cacheRead: 0, cacheWrite: 0 }, models: [],

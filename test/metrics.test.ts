@@ -71,6 +71,28 @@ test('times a session from the first typed message, without the waits between tu
   assert.equal(m.agentMs, 73_000);
 });
 
+test('counts a background subagent as working, and the wait for /login as idle', () => {
+  const background: Entry[] = [
+    human(0, `/fixcrash:fix ${issue}`),
+    { type: 'assistant', timestamp: at(0), message: { id: 'e', model: '<synthetic>', content: [{ type: 'text', text: 'Login expired' }] } },
+    { type: 'system', subtype: 'local_command', timestamp: at(40) },
+    call(41, 'b1', 'u1', 'Agent', ''),
+    result(42, 'u1', 'Async agent launched'),
+    say(43, 'b2'),
+    // The turn ends; the subagent works until 95 and its report arrives at 100.
+    { type: 'user', timestamp: at(100), origin: { kind: 'task-notification' }, message: { content: '<task-notification>' } },
+    say(101, 'b3'),
+  ];
+  const sub: Entry[] = [{ type: 'user', timestamp: at(42), message: { content: 'brief' } }, say(95, 's')];
+
+  const m = sessionMetrics('s', background, [{ type: 'fixcrash:reproducer', entries: sub }]);
+
+  assert.equal(m.wallMs, 101_000);
+  assert.equal(m.agentMs, (95 - 40 + 1) * 1000);
+  assert.equal(m.idleMs, (40 + 5) * 1000);
+  assert.deepEqual(m.models, ['claude-test'], 'not <synthetic>');
+});
+
 test('counts tool calls with the subagents, and reads what fixcrash and gh said', () => {
   const m = sessionMetrics('s', main, [{ type: 'fixcrash:reproducer', entries: reproducer }]);
 
