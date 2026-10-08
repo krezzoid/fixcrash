@@ -42,22 +42,24 @@ At the start of every session, check the status table and the deferred list in `
 - Skills use the Agent Skills format, so other agents could load them. Claude Code is the only target, so add no work for other agents.
 - Origin: the rules below come from Veilleur (github.com/krezzoid/veilleur-ai), an on-call agent that won the NVIDIA Paris Claw Agent Challenge. fixcrash keeps its discipline (failing test first, rules in code, bounded loops, redaction) and drops its infrastructure.
 
-## Planned layout (update as implemented)
+## Layout
 
 ```
-.claude-plugin/plugin.json       manifest + userConfig (app id, release tag pattern, test command overrides, budgets)
+.claude-plugin/plugin.json       manifest + userConfig (app id, project dir, release tag pattern, budgets)
 .claude-plugin/marketplace.json  the repository is its own marketplace
-.mcp.json                        Firebase MCP, Crashlytics tools only, pinned firebase-tools version
+.mcp.json                        Firebase MCP: Crashlytics read tools and create_note, pinned firebase-tools version
 skills/triage/SKILL.md           /fixcrash:triage: top issues of the latest version, each marked reproducible or not
 skills/fix/SKILL.md              /fixcrash:fix <issue>: the loop
-agents/reproducer.md             subagent: worktree at the crashing commit, writes the failing test
-hooks/hooks.json                 PreToolUse guard: no PR without a valid verify receipt
-bin/fixcrash                     verify | commit-for-version | receipt (done); symbolicate (RN, later)
+agents/reproducer.md             subagent: writes the failing test, checks it with fixcrash reproduce at the crashing commit
+hooks/hooks.json, hooks/run.sh   one hook (src/hook.ts): redaction, recorded expectations, PR guard, state write ban, test-only reproducer
+bin/fixcrash                     reproduce | verify | commit-for-version | receipt | pr-body | event | app-id; symbolicate (RN, later)
 src/, test/                      TypeScript behind bin/fixcrash, run directly by Node 24 (type stripping), node:test
 package.json, tsconfig.json      dev only (tsc for type checks); no runtime dependencies
-.git/fixcrash/                   verify's state in the user's repo: worktree, receipts/<sha>.json, logs, lock
+.git/fixcrash/                   state in the user's repo: worktree, receipts/, events/, attempts/, sessions/, logs, lock
 testbed/android/                 sample app with seeded crashes, used as the eval
 ```
+
+With the plugin loaded (`claude --plugin-dir .`), its hook also guards this repository: Bash commands that mention `.git/fixcrash` are refused, edits included. Edit files with the Edit and Write tools, and leave `.git/fixcrash` to the CLI.
 
 ## Non-negotiable rules
 
@@ -95,20 +97,23 @@ Record verified findings with a date in `docs/RESEARCH.md` §7 "Verified facts".
 ## Commands
 
 ```bash
-npm test                            # unit tests (node --test 'test/**/*.test.ts'): verify, receipt, stack, JUnit, version
+npm test                            # unit tests (node --test 'test/**/*.test.ts'): verify, reproduce, hook, redaction, receipt, …
 npm run typecheck                   # tsc, no emit
-bin/fixcrash verify --issue <id> --test <Class.method> --exception <type> --frame <symbol> --base <commit> [--from <commit>] [--project-dir <dir>]
-bin/fixcrash receipt                # the receipt for HEAD, exit 1 if none is valid
-bin/fixcrash commit-for-version <display> <build> [--revision <sha>] [--tag-pattern <p>]...
-claude plugin validate .            # manifest, component paths, MCP entries (from step 3)
-claude --plugin-dir .               # Claude Code with the plugin loaded from this checkout (from step 3)
+bin/fixcrash help                   # every command; the main ones:
+bin/fixcrash reproduce --issue <id> --test <Class.method> --base <commit> --hypothesis <text> [--max-attempts <n>] [--max-hypotheses <n>] [--run <id>] [--project-dir <dir>]
+bin/fixcrash verify --issue <id> --test <Class.method> --base <commit> [--from <commit>] [--project-dir <dir>]
+bin/fixcrash event <issue>          # what the hook recorded for an issue
+bin/fixcrash pr-body                # PR description from the receipt for HEAD
+claude plugin validate .claude-plugin/plugin.json   # the plugin; one expected warning: CLAUDE.md at the plugin root
+claude plugin validate .            # the marketplace (with both manifests present, this checks only marketplace.json)
+claude --plugin-dir .               # Claude Code with the plugin loaded from this checkout
 ```
 
-`verify` with Gradle needs a JDK: `JAVA_HOME`, `java` on PATH, or Android Studio's bundled JDK, which it finds by itself.
+`reproduce` and `verify` take the expected failure from the event the hook recorded; `--exception` and `--frame` stand in when there is none, and a PR then needs a re-verify. With Gradle they need a JDK: `JAVA_HOME`, `java` on PATH, or Android Studio's bundled JDK, which they find by themselves.
 
 ## Definition of done for any change
 
 - Unit tests for verify, receipt, hook and redaction touched by the change pass.
-- `claude plugin validate .` passes.
+- `claude plugin validate .claude-plugin/plugin.json` and `claude plugin validate .` pass.
 - At least one testbed scenario still runs end to end.
 - `docs/PLAN.md` status is updated if a step moved. `docs/RESEARCH.md` is updated if a decision or a verified fact changed. `README.md` is updated if what it shows changed.

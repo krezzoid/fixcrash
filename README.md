@@ -9,7 +9,7 @@ A Claude Code plugin that turns a Firebase Crashlytics crash into a **proven** f
 
 If it can't reproduce the crash, it says so: what it tried, what it suspects, and what data is missing. It opens no pull request.
 
-> **Status: the proof works, the plugin doesn't exist yet.** `fixcrash verify` proves fixes on the Android testbed. The skills and the PR guard are next. Usage and install steps below are the plan. See [Roadmap](#roadmap).
+> **Status: the plugin is built, not yet evaluated.** Its proof and guard work on the Android testbed; the whole `/fixcrash:fix` loop is tried next, in the eval. Android only. Not published yet. See [Roadmap](#roadmap).
 
 ## Why
 
@@ -51,12 +51,24 @@ It runs every check in its own worktree, from committed code, and never touches 
 
 It runs on demand in your own Claude Code session, on your machine. There is no server, daemon or bot. Crash data comes from Google's [Firebase MCP server](https://firebase.google.com/docs/crashlytics/ai-assistance-mcp), which the plugin starts at a pinned `firebase-tools` version.
 
-## Usage (planned)
+## Usage
 
 ```text
-/fixcrash:triage            top issues of the latest version, each marked reproducible or not
-/fixcrash:fix <issue-id>    the loop above, for one issue
+/fixcrash:triage [app-id]           top issues of the latest version, each marked unit-reproducible or not
+/fixcrash:fix <issue-id> [app-id]   the loop above, for one issue
 ```
+
+`/fixcrash:fix` reproduces the crash in a subagent that may only write tests, fixes it on a `fixcrash/<issue>` branch, runs `fixcrash verify`, and asks you before it pushes, opens the pull request, or adds a note to the issue.
+
+### What holds in code
+
+A hook, not a prompt, keeps these rules:
+
+- **Personal data is redacted before Claude reads crash data.** User ids and installation ids are dropped from events; emails, IPs, tokens and other secrets are masked in messages, logs, breadcrumbs and custom keys. Claude can't write what it never saw.
+- **The expected failure comes from the event.** The hook records each event's exception type and blame frame. `fixcrash reproduce` and `fixcrash verify` check the test against that record, not against what Claude says the crash was.
+- **No pull request without proof.** Once a session has read crash events, `gh pr create` and GitHub MCP pull request tools need a valid receipt for the commit the pull request proposes.
+- **Budgets.** `fixcrash reproduce` counts test attempts and hypotheses per crash; past the budget, the answer is a report.
+- **Receipts and recorded events are written by the CLI only**: the hook refuses file edits there and shell commands that name them. The reproducer's file edits are held to test sources.
 
 ## What it can and can't reproduce
 
@@ -91,13 +103,23 @@ Usually it can't, and fixcrash ends with a report:
 - **Writes to Crashlytics are notes only.** fixcrash never changes an issue's state. Closing an issue is a human's call, after a release.
 - **Tests run offline** where the build tool allows, never against production services.
 
-## Requirements (planned)
+## Requirements
 
 - Claude Code.
 - A Firebase project with Crashlytics, and a Firebase CLI login (`npx firebase-tools login`).
 - Your app's own toolchain: JDK and Android SDK, Node.js for React Native, Xcode for iOS.
-- Node.js 24 or newer for `bin/fixcrash`.
+- Node.js 24 or newer for `bin/fixcrash` and the hook.
 - `gh`, logged in, to open pull requests.
+
+## Try it from a checkout
+
+```bash
+git clone https://github.com/krezzoid/fixcrash
+cd your-android-app
+claude --plugin-dir ../fixcrash
+```
+
+The plugin's options (Firebase app id, Android project directory, release tag pattern, budgets) default to an app at the repository root, with the app id read from `google-services.json`.
 
 ## Install (once published)
 
@@ -115,8 +137,8 @@ In Claude Code:
 | 0 | Research and design | ✅ |
 | 1 | Spike: Android testbed with three seeded crashes, read through Firebase MCP | ✅ |
 | 2 | `fixcrash verify`: fail-before, pass-after, suite-green, receipt | ✅ |
-| 3 | Plugin: skills `triage` and `fix`, `reproducer` subagent, PR guard hook | next |
-| 4 | Eval on the testbed | |
+| 3 | Plugin: skills `triage` and `fix`, `reproducer` subagent, PR guard hook | ✅ |
+| 4 | Eval on the testbed | next |
 | 5 | React Native | |
 | 6 | iOS (Swift) | |
 | 7 | Publish | |

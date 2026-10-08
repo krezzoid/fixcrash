@@ -1,0 +1,21 @@
+{
+  "description": "fixcrash rules in code: redact crash data, record expected failures, no PR without a verify receipt, no writes to .git/fixcrash",
+  "hooks": {
+    "PreToolUse": [
+      {
+        "matcher": "^(Bash|PowerShell|Write|Edit|MultiEdit|NotebookEdit)$|^mcp__.+__(create_pull_request|pull_request_create|createPullRequest)$",
+        "hooks": [
+          { "type": "command", "command": "sh", "args": ["${CLAUDE_PLUGIN_ROOT}/hooks/run.sh"] }
+        ]
+      }
+    ],
+    "PostToolUse": [
+      {
+        "matcher": "^mcp__.+__crashlytics_[a-z_]+$",
+        "hooks": [
+          { "type": "command", "command": "sh", "args": ["${CLAUDE_PLUGIN_ROOT}/hooks/run.sh"] }
+        ]
+      }
+    ]
+  }
+}

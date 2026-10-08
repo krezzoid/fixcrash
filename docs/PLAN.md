@@ -7,7 +7,7 @@
 | 0 | Research, repository, CLAUDE.md | `docs/RESEARCH.md`, `CLAUDE.md`, this plan | ✅ 2026-10-07 |
 | 1 | **Spike: Android testbed** | `testbed/android` has a small Kotlin app with the three seeded crashes below. Each one is reported to a Firebase project from an emulator, and read by hand through Firebase MCP in Claude Code. Open questions 1, 2, 4 and 5 in `RESEARCH.md` §9 are answered in §7 | ✅ 2026-10-07 |
 | 2 | `bin/fixcrash verify` | Fail-before / pass-after / suite-green with the "same failure" check (exception type and top app frame), a receipt bound to the commit, unit tests. Includes `commit-for-version` | ✅ 2026-10-07: `verify` (base, fix parent, head, in its own worktree), receipt, `commit-for-version`, `receipt`; 36 unit tests. Parser and paging verified end to end with Gradle on a copy of the testbed |
-| 3 | Plugin skeleton | Manifest with `userConfig`, marketplace, `.mcp.json` with pinned firebase-tools, skills `triage` and `fix`, subagent `reproducer`, PR guard hook. `claude plugin validate .` passes | ⬜ |
+| 3 | Plugin skeleton | Manifest with `userConfig`, marketplace, `.mcp.json` with pinned firebase-tools, skills `triage` and `fix`, subagent `reproducer`, PR guard hook. `claude plugin validate .` passes | ✅ 2026-10-08: plugin files; one hook process: redaction of Crashlytics results before the model sees them, expected failures recorded from events, PR guard, `.git/fixcrash` write ban, test-only reproducer; `fixcrash reproduce` with attempt and hypothesis budgets in code; 74 unit tests. Hook checked live in a Claude Code session; reproduce, verify and pr-body end to end with Gradle on a testbed copy. `/fixcrash:fix` as a whole runs in step 4 |
 | 4 | Eval on the testbed | Per scenario: reproduced or not, verified, PR opened, wall time, tool calls. The non-reproducible scenario ends in a report and no PR. The agent works on a copy of `testbed/android` made its own git repository: it can't read the scenario descriptions, and AGP can write the commit into release builds (`RESEARCH.md` §7) | ⬜ |
 | 5 | React Native | Jest path, plus symbolication of JS stacks from source maps for the crashing commit; an RN testbed | ⬜ |
 | 6 | iOS (Swift) | `swift test` and `xcodebuild test -only-testing` paths; an iOS testbed | ⬜ |
@@ -28,7 +28,10 @@ The app, triggers and setup: `testbed/android/README.md`.
 - Headless runs in CI (`claude -p`) on new top issues.
 - Real network isolation for test runs, beyond `--offline`.
 - Measure the unit-reproducible share on a real production app's top crashes. This needs access to one.
-- From step 2, for step 3:
-  - `--exception` and `--frame` come from `verify`'s arguments, so from the agent's reading of the event. Stronger: a hook records Crashlytics MCP responses, and `verify` takes the expectation from the recorded event by issue id.
-  - Receipts are plain files in `.git/fixcrash/receipts/`. The agent could write one by hand: the hook should deny writes there (Write, Edit, Bash).
+- From step 3:
+  - `--base` is the agent's word. `verify` could check it against the build stamp revision recorded from the event, when there is one.
+  - The hook spots state writes and PR commands by their text. A command that builds the path or the command in a variable gets past it; so does a pull request opened on the web after `git push`. The threat is a careless agent, not a hostile one.
+  - The reproducer's Bash can still edit app code (`sed -i`); only Write and Edit are held to test files.
+  - The guard turns on per repository, for sessions that read crash events and for `fixcrash/` branches. A PR from another branch in a later session isn't checked.
+  - A Robolectric test counts as a JVM test, but adding Robolectric to a module is a build change, which `reproduce` and `verify` don't apply at the crashing commit (see the lifecycle scenario).
 - From step 2: the Gradle unit test task is fixed to `testDebugUnitTest`. Flavored apps need `test<Flavor>DebugUnitTest`, and plain JVM modules (task `test`) are left out of the suite. Make it configurable when a real app needs it.

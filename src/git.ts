@@ -17,6 +17,13 @@ export function git(cwd: string, args: string[]): string {
   return r.stdout.trim();
 }
 
+/** Runs git and returns stdout as is: porcelain output starts with significant spaces. */
+export function gitRaw(cwd: string, args: string[]): string {
+  const r = run(cwd, args);
+  if (r.status !== 0) throw new GitError(`git ${args.join(' ')}: ${r.stderr.trim() || `exit ${r.status}`}`);
+  return r.stdout;
+}
+
 /** Runs git and returns trimmed stdout, or undefined on a non-zero exit. */
 export function tryGit(cwd: string, args: string[]): string | undefined {
   const r = run(cwd, args);
@@ -51,7 +58,7 @@ export function isAncestor(cwd: string, ancestor: string, commit: string): boole
 
 /** Tracked files with uncommitted changes, staged or not. */
 export function dirtyFiles(cwd: string): string[] {
-  return git(cwd, ['status', '--porcelain', '--untracked-files=no'])
+  return gitRaw(cwd, ['status', '--porcelain', '--untracked-files=no'])
     .split('\n')
     .filter(Boolean)
     .map((l) => l.slice(3));

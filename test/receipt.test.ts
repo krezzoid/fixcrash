@@ -16,8 +16,8 @@ function run(role: RunRecord['role'], ok = true): RunRecord {
 
 function receipt(overrides: Partial<Receipt> = {}): Receipt {
   return {
-    schema: 1, verified: true, head: HEAD, base: 'b'.repeat(40), from: 'b'.repeat(40), issue: 'i', test: 'a.BTest.c',
-    expected: { exception: 'java.lang.NullPointerException', frame: 'a.B.c' }, projectDir: '', runner: 'gradle',
+    schema: 2, verified: true, head: HEAD, base: 'b'.repeat(40), from: 'b'.repeat(40), issue: 'i', test: 'a.BTest.c',
+    expected: { exception: 'java.lang.NullPointerException', frame: 'a.B.c' }, expectedSource: 'event', projectDir: '', runner: 'gradle',
     testFiles: [], fixFiles: [], runs: [run('base'), run('head')], createdAt: '2026-10-07T00:00:00Z', fixcrash: '0.0.0',
     ...overrides,
   };

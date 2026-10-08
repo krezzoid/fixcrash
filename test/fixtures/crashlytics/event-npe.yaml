@@ -1,0 +1,66 @@
+- name: |
+    projects/100000000001/apps/1:100000000001:android:00000000000000aa/events/0000000000000000000000000000000A_1000000000000000001
+  platform: |
+    ANDROID
+  bundleOrPackage: |
+    com.example.app
+  eventId: |
+    '1000000000000000001'
+  eventTime: |
+    '2026-01-01T10:00:00Z'
+  issue: |
+    id: 0000000000000000000000000000c0de
+    title: com.example.app.profile.ProfileParser.parse
+    subtitle: java.lang.NullPointerException - Attempt to invoke virtual method 'java.lang.String com.example.app.profile.AvatarDto.getUrl()' on a null object reference
+    errorType: FATAL
+    sampleEvent: projects/100000000001/apps/1:100000000001:android:00000000000000aa/events/0000000000000000000000000000000A_1000000000000000001
+  device: |
+    manufacturer: Example
+    model: phone-1
+    displayName: Example (phone-1)
+    formFactor: PHONE
+  version: |
+    displayVersion: '2.3'
+    buildVersion: '230'
+    displayName: 2.3 (230)
+  user: |
+    id: user-0042
+    email: jane.doe@example.com
+  customKeys: |
+    last_action: open_profile
+    client_ip: 203.0.113.7
+    auth_token: abc123def456
+  installationUuid: |
+    00000000000000000000000000000000000000000000000000000000000000AA
+  logs: |-
+    [2026-01-01T09:59:58.000Z] login ok for jane.doe@example.com
+    [2026-01-01T09:59:59.000Z] GET /profile Authorization: Bearer abcdefghijklmnopqrstuvwxyz0123456789
+  breadcrumbs: '[2026-01-01T09:59:57.000Z] screen_view { firebase_screen_class: MainActivity }'
+  blameFrame: |
+    line: '12'
+    file: ProfileParser.kt
+    symbol: com.example.app.profile.ProfileParser.parse
+    offset: '12'
+    library: com.example.app
+    owner: DEVELOPER
+    blamed: true
+  exceptions: |-
+    java.lang.NullPointerException: Attempt to invoke virtual method 'java.lang.String com.example.app.profile.AvatarDto.getUrl()' on a null object reference
+    at com.example.app.profile.ProfileParser.parse (ProfileParser.kt:12)
+    at com.example.app.MainActivity.openProfile (MainActivity.kt:51)
+    at android.os.Handler.handleCallback (Handler.java:1080)
+    at android.app.ActivityThread.main (ActivityThread.java:9884)
+    at java.lang.reflect.Method.invoke (Method.java)
+  threads: |-
+    Thread: main (crashed)
+    at com.example.app.profile.ProfileParser.parse (ProfileParser.kt:12)
+    at com.example.app.MainActivity.openProfile (MainActivity.kt:51)
+  buildStamp: |
+    |
+      repositories {
+        system: GIT
+        local_root_path: "$PROJECT_DIR"
+        revision: "1111111111111111111111111111111111111111"
+      }
+  issueVariant: |
+    id: 00000000000000000000000000000002

@@ -1,26 +1,47 @@
-// bin/fixcrash: verify | commit-for-version | receipt
-// Exit codes: 0 done, 1 not verified / not found, 2 bad input or environment.
+// bin/fixcrash: verify | reproduce | commit-for-version | receipt | pr-body | event | app-id
+// Exit codes: 0 done, 1 not verified / not reproduced / not found,
+// 2 bad input or environment, 3 reproduce budget spent.
 
+import { readFileSync } from 'node:fs';
+import { join, resolve } from 'node:path';
 import { parseArgs } from 'node:util';
-import { commonDir, GitError, resolveCommit } from './git.ts';
+import { commonDir, GitError, repoRoot, resolveCommit } from './git.ts';
+import { prBody } from './prbody.ts';
 import { checkReceipt } from './receipt.ts';
+import { readRecord } from './record.ts';
+import { reproduce } from './reproduce.ts';
+import { findFiles } from './runner.ts';
+import type { Expected } from './stack.ts';
 import { verify, VerifyError } from './verify.ts';
 import { commitForVersion, DEFAULT_TAG_PATTERNS, VersionError } from './version.ts';
 
 const USAGE = `usage:
-  fixcrash verify --issue <id> --test <Class.method> --exception <type> --frame <symbol>
-                  --base <commit> [--from <commit>] [--project-dir <dir>] [--timeout <minutes>]
+  fixcrash reproduce --issue <id> --test <Class.method> --base <commit> --hypothesis <text>
+                     [--max-attempts <n>] [--max-hypotheses <n>] [--run <id>]
+                     [--exception <type> --frame <symbol>] [--project-dir <dir>] [--timeout <minutes>]
+      Runs the new test, uncommitted in the working tree, at --base (the crashing
+      version) and says whether it fails as the crash did. Counts attempts and
+      hypotheses per issue and --run; past the budget it exits 3: stop and report.
+
+  fixcrash verify --issue <id> --test <Class.method> --base <commit> [--from <commit>]
+                  [--exception <type> --frame <symbol>] [--project-dir <dir>] [--timeout <minutes>]
       Proves a fix committed at HEAD. The test must fail at --base (the crashing
       version) and at --from (where the fix starts; default: merge-base with the
-      default branch) with --exception, passing through --frame; with the fix it
-      must pass and the full suite must be green. Writes a receipt for HEAD.
+      default branch) as the crash did; with the fix it must pass and the full
+      suite must be green. Writes a receipt for HEAD.
+
+  Both take the expected failure from the issue's Crashlytics event, as the
+  fixcrash hook recorded it. --exception and --frame pick one when the issue
+  has several, or stand in when none is recorded (a PR then needs a re-verify).
 
   fixcrash commit-for-version <display> <build> [--revision <sha>] [--tag-pattern <pattern>]...
       The commit a build was made from: --revision (the event's build stamp), or
       the first existing tag from the patterns ({display}, {build}; default: ${DEFAULT_TAG_PATTERNS.join(', ')}).
 
-  fixcrash receipt [--commit <ref>]
-      Prints the receipt for HEAD (or --commit) if it is valid; exit 1 if not.`;
+  fixcrash event <issue>          What the hook recorded for an issue: expected failures, versions.
+  fixcrash receipt [--commit <ref>]   The receipt for HEAD (or --commit) if valid; exit 1 if not.
+  fixcrash pr-body [--commit <ref>]   A pull request description from that receipt.
+  fixcrash app-id [--project-dir <dir>]   Firebase app ids from google-services.json files.`;
 
 class UsageError extends Error {}
 
@@ -29,40 +50,74 @@ function required(values: Record<string, unknown>, names: string[]): void {
   if (missing.length > 0) throw new UsageError(`missing ${missing.map((n) => `--${n}`).join(', ')}`);
 }
 
+function expectedFrom(values: { exception?: string; frame?: string }): Expected | undefined {
+  if (values.exception === undefined && values.frame === undefined) return undefined;
+  if (!values.exception || !values.frame) throw new UsageError('--exception and --frame go together');
+  return { exception: values.exception, frame: values.frame };
+}
+
+function positive(value: string | undefined, name: string, fallback: number): number {
+  if (value === undefined) return fallback;
+  const n = Number(value);
+  if (!(n > 0)) throw new UsageError(`--${name} must be a positive number`);
+  return n;
+}
+
+const RUN_OPTIONS = {
+  issue: { type: 'string' },
+  test: { type: 'string' },
+  exception: { type: 'string' },
+  frame: { type: 'string' },
+  base: { type: 'string' },
+  'project-dir': { type: 'string' },
+  timeout: { type: 'string' },
+} as const;
+
 function cmdVerify(args: string[]): number {
-  const { values } = parseArgs({
-    args,
-    options: {
-      issue: { type: 'string' },
-      test: { type: 'string' },
-      exception: { type: 'string' },
-      frame: { type: 'string' },
-      base: { type: 'string' },
-      from: { type: 'string' },
-      'project-dir': { type: 'string' },
-      timeout: { type: 'string' },
-    },
-    strict: true,
-  });
-  required(values, ['issue', 'test', 'exception', 'frame', 'base']);
-  let timeoutMs: number | undefined;
-  if (values.timeout !== undefined) {
-    const minutes = Number(values.timeout);
-    if (!(minutes > 0)) throw new UsageError('--timeout must be a positive number of minutes');
-    timeoutMs = minutes * 60_000;
-  }
+  const { values } = parseArgs({ args, options: { ...RUN_OPTIONS, from: { type: 'string' } }, strict: true });
+  required(values, ['issue', 'test', 'base']);
   const result = verify({
     cwd: process.cwd(),
     issue: values.issue!,
     test: values.test!,
-    expected: { exception: values.exception!, frame: values.frame! },
+    expected: expectedFrom(values),
     base: values.base!,
     from: values.from,
     projectDir: values['project-dir'],
-    timeoutMs,
+    timeoutMs: positive(values.timeout, 'timeout', 30) * 60_000,
     log: (line) => console.log(line),
   });
   return result.verified ? 0 : 1;
+}
+
+function cmdReproduce(args: string[]): number {
+  const { values } = parseArgs({
+    args,
+    options: {
+      ...RUN_OPTIONS,
+      hypothesis: { type: 'string' },
+      'max-attempts': { type: 'string' },
+      'max-hypotheses': { type: 'string' },
+      run: { type: 'string' },
+    },
+    strict: true,
+  });
+  required(values, ['issue', 'test', 'base', 'hypothesis']);
+  const result = reproduce({
+    cwd: process.cwd(),
+    issue: values.issue!,
+    test: values.test!,
+    base: values.base!,
+    hypothesis: values.hypothesis!,
+    maxAttempts: positive(values['max-attempts'], 'max-attempts', 5),
+    maxHypotheses: positive(values['max-hypotheses'], 'max-hypotheses', 3),
+    run: values.run,
+    expected: expectedFrom(values),
+    projectDir: values['project-dir'],
+    timeoutMs: positive(values.timeout, 'timeout', 30) * 60_000,
+    log: (line) => console.log(line),
+  });
+  return { reproduced: 0, 'not-reproduced': 1, 'budget-spent': 3 }[result.status];
 }
 
 function cmdCommitForVersion(args: string[]): number {
@@ -86,11 +141,14 @@ function cmdCommitForVersion(args: string[]): number {
   return 0;
 }
 
-function cmdReceipt(args: string[]): number {
+function receiptFor(args: string[]) {
   const { values } = parseArgs({ args, options: { commit: { type: 'string' } }, strict: true });
   const cwd = process.cwd();
-  const commit = resolveCommit(cwd, values.commit ?? 'HEAD');
-  const check = checkReceipt(commonDir(cwd), commit);
+  return checkReceipt(commonDir(cwd), resolveCommit(cwd, values.commit ?? 'HEAD'));
+}
+
+function cmdReceipt(args: string[]): number {
+  const check = receiptFor(args);
   if (!check.ok) {
     console.error(`fixcrash: ${check.reason}`);
     return 1;
@@ -99,16 +157,68 @@ function cmdReceipt(args: string[]): number {
   return 0;
 }
 
+function cmdPrBody(args: string[]): number {
+  const check = receiptFor(args);
+  if (!check.ok) {
+    console.error(`fixcrash: ${check.reason}`);
+    return 1;
+  }
+  process.stdout.write(prBody(check.receipt));
+  return 0;
+}
+
+function cmdEvent(args: string[]): number {
+  const { positionals } = parseArgs({ args, options: {}, allowPositionals: true, strict: true });
+  if (positionals.length !== 1) throw new UsageError('event takes <issue>');
+  const record = readRecord(commonDir(process.cwd()), positionals[0]!);
+  if (!record) {
+    console.error(`fixcrash: nothing recorded for issue ${positionals[0]}: fetch an event with crashlytics_batch_get_events first`);
+    return 1;
+  }
+  console.log(JSON.stringify(record, null, 2));
+  return 0;
+}
+
+interface GoogleServices {
+  client?: { client_info?: { mobilesdk_app_id?: string; android_client_info?: { package_name?: string } } }[];
+}
+
+function cmdAppId(args: string[]): number {
+  const { values } = parseArgs({ args, options: { 'project-dir': { type: 'string' } }, strict: true });
+  const dir = values['project-dir'] ? resolve(values['project-dir']) : repoRoot(process.cwd());
+  let found = 0;
+  for (const f of findFiles(dir, new Set(['google-services.json']))) {
+    // Only the app id and package name are printed: the file also holds API keys.
+    const config = JSON.parse(readFileSync(join(dir, f), 'utf8')) as GoogleServices;
+    for (const c of config.client ?? []) {
+      const id = c.client_info?.mobilesdk_app_id;
+      if (!id) continue;
+      console.log(`${id}\t${c.client_info?.android_client_info?.package_name ?? ''}\t${f}`);
+      found++;
+    }
+  }
+  if (found === 0) console.error('fixcrash: no google-services.json with an app id here: pass the app id, or set it in the plugin options');
+  return found > 0 ? 0 : 1;
+}
+
 export function main(argv: string[]): number {
   const [command, ...rest] = argv;
   try {
     switch (command) {
       case 'verify':
         return cmdVerify(rest);
+      case 'reproduce':
+        return cmdReproduce(rest);
       case 'commit-for-version':
         return cmdCommitForVersion(rest);
       case 'receipt':
         return cmdReceipt(rest);
+      case 'pr-body':
+        return cmdPrBody(rest);
+      case 'event':
+        return cmdEvent(rest);
+      case 'app-id':
+        return cmdAppId(rest);
       case undefined:
       case '-h':
       case '--help':

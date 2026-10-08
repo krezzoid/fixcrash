@@ -1,39 +1,13 @@
 import assert from 'node:assert/strict';
-import { copyFileSync, existsSync, writeFileSync } from 'node:fs';
+import { existsSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { test } from 'node:test';
 import { checkReceipt, receiptPath } from '../src/receipt.ts';
-import { gradle, type Runner } from '../src/runner.ts';
+import { recordEvent } from '../src/record.ts';
 import { verify, VerifyError, type VerifyOptions } from '../src/verify.ts';
-import { commit, initRepo, sh, tempDir } from './helpers.ts';
-
-// Gradle's file layout and reports, with fake-runner.mjs in place of ./gradlew.
-const fake: Runner = {
-  ...gradle,
-  name: 'fake',
-  targetCommand: (testId) => [process.execPath, 'fake-runner.mjs', 'target', testId],
-  suiteCommand: () => [process.execPath, 'fake-runner.mjs', 'suite'],
-  environment: () => undefined,
-};
-
-const PARSER = 'app/src/main/java/com/example/Parser.kt';
-const TESTS = 'app/src/test/java/com/example';
-const TEST_ID = 'com.example.ParserTest.parsesWithoutAvatar';
-const EXPECTED = { exception: 'java.lang.NullPointerException', frame: 'com.example.Parser.parse' };
-
-/** A project at the crashing version: Parser has the bug, an existing test passes. */
-function crashingProject(t: Parameters<typeof tempDir>[0]): { dir: string; base: string } {
-  const dir = tempDir(t);
-  copyFileSync(new URL('./fixtures/fake-runner.mjs', import.meta.url), join(dir, 'fake-runner.mjs'));
-  const base = initRepo(dir, {
-    '.gitignore': 'build/\nlocal.properties\n',
-    [PARSER]: 'behaviour: bug\n',
-    [`${TESTS}/ExistingTest.kt`]: 'test parsesFullProfile pass\n',
-  });
-  writeFileSync(join(dir, 'local.properties'), 'sdk.dir=/nowhere\n');
-  sh(dir, 'git', 'switch', '--quiet', '-c', 'fix');
-  return { dir, base };
-}
+import {
+  commit, crashingProject, EXPECTED, fakeRunner as fake, PARSER, parserEvent, sh, TEST_ID, TESTS,
+} from './helpers.ts';
 
 function run(dir: string, base: string, extra: Partial<VerifyOptions> = {}) {
   const lines: string[] = [];
@@ -195,7 +169,7 @@ test('refuses uncommitted changes', (t) => {
   commit(dir, { [`${TESTS}/ParserTest.kt`]: 'test parsesWithoutAvatar crash\n' }, 'test');
   writeFileSync(join(dir, PARSER), 'behaviour: fixed\n');
 
-  assert.throws(() => run(dir, base), (e) => e instanceof VerifyError && /uncommitted changes/.test(e.message));
+  assert.throws(() => run(dir, base), (e) => e instanceof VerifyError && /uncommitted changes \(app\/src\/main\/java\/com\/example\/Parser.kt\)/.test(e.message));
 });
 
 test('refuses a branch with no fix, or a test the fix did not touch', (t) => {
@@ -214,4 +188,30 @@ test('refuses HEAD on the default branch without --from', (t) => {
 
   assert.throws(() => run(dir, base), /commit the test and the fix on a branch, or pass --from/);
   assert.equal(run(dir, base, { from: 'HEAD~1' }).verified, true);
+});
+
+test('takes the expected failure from the recorded Crashlytics event', (t) => {
+  const { dir, base } = crashingProject(t);
+  recordEvent(gitDir(dir), parserEvent());
+  commit(dir, { [`${TESTS}/ParserTest.kt`]: 'test parsesWithoutAvatar crash\n', [PARSER]: 'behaviour: fixed\n' }, 'fix');
+
+  const r = run(dir, base, { expected: undefined });
+
+  assert.equal(r.verified, true, r.output);
+  assert.equal(r.receipt!.expectedSource, 'event');
+  assert.match(r.output, /from the recorded Crashlytics event/);
+  assert.equal(run(dir, base).receipt!.expectedSource, 'event', 'arguments that match the record count as the event');
+});
+
+test('refuses arguments that contradict the recorded event, and runs without either', (t) => {
+  const { dir, base } = crashingProject(t);
+  commit(dir, { [`${TESTS}/ParserTest.kt`]: 'test parsesWithoutAvatar crash\n', [PARSER]: 'behaviour: fixed\n' }, 'fix');
+  assert.throws(() => run(dir, base, { expected: undefined }), /no recorded event for issue issue-1/);
+  assert.equal(run(dir, base).receipt!.expectedSource, 'arguments');
+
+  recordEvent(gitDir(dir), parserEvent());
+  assert.throws(
+    () => run(dir, base, { expected: { ...EXPECTED, exception: 'java.lang.IllegalStateException' } }),
+    (e) => e instanceof VerifyError && /recorded events expect java.lang.NullPointerException at com.example.Parser.parse/.test(e.message),
+  );
 });

@@ -1,0 +1,15 @@
+{
+  "name": "fixcrash",
+  "description": "fixcrash: proven fixes for Firebase Crashlytics crashes",
+  "owner": {
+    "name": "Ilya Seliverstov",
+    "url": "https://github.com/krezzoid"
+  },
+  "plugins": [
+    {
+      "name": "fixcrash",
+      "source": "./",
+      "description": "Turns a Firebase Crashlytics crash into a proven fix, or an honest report when it can't reproduce it."
+    }
+  ]
+}

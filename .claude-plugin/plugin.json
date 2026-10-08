@@ -1,0 +1,49 @@
+{
+  "name": "fixcrash",
+  "version": "0.1.0",
+  "description": "Turns a Firebase Crashlytics crash into a proven fix: a test that fails on the version that crashed, the fix, a green suite, and a pull request only with that proof.",
+  "author": {
+    "name": "Ilya Seliverstov",
+    "url": "https://github.com/krezzoid"
+  },
+  "homepage": "https://github.com/krezzoid/fixcrash",
+  "repository": "https://github.com/krezzoid/fixcrash",
+  "license": "MIT",
+  "keywords": ["crashlytics", "firebase", "android", "crash", "testing"],
+  "userConfig": {
+    "app_id": {
+      "type": "string",
+      "title": "Firebase app id",
+      "description": "The app's Firebase app id, client_info.mobilesdk_app_id in google-services.json. Leave empty to read it from google-services.json.",
+      "default": ""
+    },
+    "project_dir": {
+      "type": "string",
+      "title": "Android project directory",
+      "description": "Where gradlew is, relative to the repository root. Use . for the root.",
+      "default": "."
+    },
+    "release_tag_pattern": {
+      "type": "string",
+      "title": "Release tag pattern",
+      "description": "The git tag of a release, used when an event has no build stamp. {display} and {build} stand for the version name and code, as in v{display} or release/{display}-{build}.",
+      "default": "v{display}"
+    },
+    "max_hypotheses": {
+      "type": "number",
+      "title": "Hypotheses per crash",
+      "description": "How many root-cause hypotheses the reproducer may try before it stops and reports.",
+      "default": 3,
+      "min": 1,
+      "max": 10
+    },
+    "max_test_attempts": {
+      "type": "number",
+      "title": "Test attempts per crash",
+      "description": "How many test runs at the crashing version the reproducer may make before it stops and reports.",
+      "default": 5,
+      "min": 1,
+      "max": 20
+    }
+  }
+}

@@ -1,6 +1,6 @@
 {
   "name": "fixcrash",
-  "version": "0.0.0",
+  "version": "0.1.0",
   "private": true,
   "description": "Claude Code plugin: turn a Firebase Crashlytics crash into a proven fix",
   "license": "MIT",

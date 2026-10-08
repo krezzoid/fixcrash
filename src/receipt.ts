@@ -4,10 +4,11 @@
 
 import { mkdirSync, readFileSync, renameSync, writeFileSync } from 'node:fs';
 import { dirname, join } from 'node:path';
+import type { ExpectationSource } from './record.ts';
 import type { Expected } from './stack.ts';
 import type { TestStatus } from './junit.ts';
 
-export const RECEIPT_SCHEMA = 1;
+export const RECEIPT_SCHEMA = 2;
 
 export interface TargetResult {
   name: string;
@@ -46,6 +47,8 @@ export interface Receipt {
   issue: string;
   test: string;
   expected: Expected;
+  /** Where `expected` came from: the Crashlytics event recorded by the hook, or verify's arguments. */
+  expectedSource: ExpectationSource;
   projectDir: string;
   runner: string;
   testFiles: string[];

@@ -7,7 +7,7 @@
         "firebase-tools@15.32.1",
         "mcp",
         "--tools",
-        "firebase_get_environment,firebase_read_resources,crashlytics_get_report,crashlytics_get_issue,crashlytics_list_events,crashlytics_batch_get_events,crashlytics_list_notes"
+        "firebase_get_environment,firebase_read_resources,crashlytics_get_report,crashlytics_get_issue,crashlytics_list_events,crashlytics_batch_get_events,crashlytics_list_notes,crashlytics_create_note"
       ]
     }
   }

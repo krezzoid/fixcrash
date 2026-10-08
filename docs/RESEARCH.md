@@ -101,8 +101,13 @@ These end in an honest report. The plugin's value depends on the share of the fi
 
 - **Rules in code.**
   - `bin/fixcrash verify` decides whether a fix is proven and writes a receipt bound to the commit.
-  - A `PreToolUse` hook refuses PR creation without a receipt for HEAD.
+  - A `PreToolUse` hook refuses PR creation without a receipt for the commit the PR proposes.
   - Prompts describe the loop; code enforces the rule.
+  - As implemented (step 3), one hook process (`hooks/run.sh` → `src/hook.ts`) holds these rules:
+    - PostToolUse on Crashlytics tools: redact personal data before the model sees the result; record each event's expected failure (exception type and blame frame) in `.git/fixcrash/events/`; mark the session.
+    - PreToolUse: the PR guard, for sessions that read crash events and for `fixcrash/` branches. The receipt must exist for the PR's commit, and its expected failure must come from a recorded event, not from `verify`'s arguments.
+    - PreToolUse: no tool writes `.git/fixcrash` but the CLI; the reproducer subagent writes test files only.
+    - It fails closed for what it guards: an error while checking a PR or a state write blocks it, and so does a missing Node 24.
 - **Same failure, not any failure.** The test must fail with the crash's exception type, and its stack must hit the crash's top app frame. A test failing for another reason doesn't count.
   - As implemented (step 2): some throwable in the cause chain (not a suppressed one) has the crash's exception type; the blame frame's symbol is on its stack; no frame above it comes from a test source file. The last rule rejects an exception thrown by a stub or a fake. The message is never compared.
   - "Top app frame" is approximated by "on the stack, with no test code above it": telling app frames from library frames would need the app's package list.
@@ -114,10 +119,11 @@ These end in an honest report. The plugin's value depends on the share of the fi
 - **Bounded loop:**
   - N hypotheses and M test attempts per issue;
   - then a report with evidence and the missing data ("add a custom key X", "log Y before Z").
+  - As implemented (step 3): the reproducer writes the test in the working tree and runs `fixcrash reproduce`, which overlays it on the crashing commit in fixcrash's worktree. `reproduce` counts attempts and distinct hypotheses per issue and run (the session id), and past the budget answers "stop and report" with exit 3.
 - **Untrusted input, redaction.**
   - Event text is never followed as instructions.
   - Personal data never lands in tests, commits, PRs or notes.
-  - Redaction rules can come from Veilleur's `packages/mcp/src/redact/`.
+  - As implemented (step 3): redaction happens before the model reads crash data, so the model can't write what it never saw. Event fields `user` and `installationUuid` lose every value; free text everywhere goes through pattern rules (email, IP, tokens, secrets in assignments, UUIDs, phone numbers), each with a test. Ids, resource names, frames and shas are left alone.
 - **Writes back.**
   - A Crashlytics note with the PR link or the report.
   - Never change an issue's state.
@@ -210,6 +216,26 @@ These end in an honest report. The plugin's value depends on the share of the fi
   - Node 24.21 runs the `.ts` sources with no flag and no warning. `import.meta.main` is available.
   - `node --test` takes a glob (`'test/**/*.test.ts'`), not a directory.
 
+**2026-10-08: Hooks and the Firebase MCP output (step 3)** (Claude Code 2.1.260, firebase-tools 15.32.1; code.claude.com/docs/en/hooks, firebase-tools `lib/mcp/tools/crashlytics/events.js`)
+
+- **Hook mechanics**
+  - Tools of a plugin's MCP server are named `mcp__plugin_<plugin>_<server>__<tool>`, e.g. `mcp__plugin_fixcrash_firebase__crashlytics_batch_get_events`. A matcher written against the bare server key never fires for them.
+  - A hook blocks a tool call only with exit code 2 or a JSON `permissionDecision: "deny"`. A hook that can't start or exits 1 lets the call through, so a guard has to fail closed on purpose.
+  - The input carries `cwd` (the session's directory, not where a command `cd`s to), `session_id`, and `agent_type` inside a subagent (`fixcrash:reproducer` for a plugin subagent).
+  - Plugin subagents ignore `hooks`, `mcpServers` and `permissionMode` in their frontmatter: per-agent rules go in the plugin's hooks, keyed on `agent_type`.
+  - Exec-form hooks (`command` + `args`) take `${CLAUDE_PLUGIN_ROOT}` as one argument with no quoting.
+- **MCP results in PostToolUse** (checked live, in a session)
+  - For an MCP tool, `tool_response` is the content array, `[{ "type": "text", "text": "…" }]`, and the input carries `mcp_server: { name, source }`.
+  - `hookSpecificOutput.updatedToolOutput` with an array of the same shape replaces what the model sees. This is how fixcrash redacts crash data before the model reads it.
+  - Hooks added to `.claude/settings.local.json` take effect in the running session; removed ones keep running until the session restarts.
+- **Event format**
+  - `batch_get_events` and `list_events` print `js-yaml.dump(events)` with `lineWidth: 200`. Each event is a map from field name to a string: nested objects (`issue`, `version`, `blameFrame`, `user`, `customKeys`) are YAML-dumped first, and `exceptions` and `threads` are text.
+  - `exceptions` lines are `Type: message`, `at symbol (File.kt:12)` (a space before the parenthesis, unlike the JVM's), `Caused by: …`, and `... frames omitted ...` past 20 frames. Exceptions are separated by a blank line.
+  - `get_issue` prints JSON; the issue `title` is the blame frame's symbol, the `subtitle` is `<exception type> - <message>`.
+  - A release build's `buildStamp` holds the `repositories { … revision: "<sha>" }` text.
+- **Auto mode** refuses to copy a captured event into a committed fixture, scrubbed or not. The test fixtures are written by hand, with synthetic values.
+- **Headless runs** (`claude -p`) from the agent's sandbox can't authenticate (`OAuth session expired`), so the plugin as a whole is tried in the user's own session (step 4).
+
 **2026-10-07: React Native Firebase.** JS errors go through `recordError` (also the global handler). The JS stack is converted to a mock native exception. Line numbers are relative to the bundle after transpilation and minification, so source maps have to be kept and applied by the developer.
 
 ## 8. Risks
@@ -227,7 +253,7 @@ These end in an honest report. The plugin's value depends on the share of the fi
 3. What share of a real app's top crashes can a unit test reproduce? This is the number that decides whether the plugin is useful.
 4. ~~How do Debug builds and emulators report to Crashlytics, and how fast? Do events need a release build with an uploaded mapping?~~ Answered in §7 (spike).
 5. ~~Can `firebase-tools mcp` start with only Crashlytics tools? What does the plugin need for auth and app-id discovery?~~ Answered in §7 (spike) for Android; `GoogleService-Info.plist` waits for iOS.
-6. How does the hook reliably recognise PR creation: `gh pr create` in Bash, GitHub MCP tools, `git push` plus a web PR?
+6. ~~How does the hook reliably recognise PR creation: `gh pr create` in Bash, GitHub MCP tools, `git push` plus a web PR?~~ Answered in step 3, as far as a hook can: `gh pr create`, `hub pull-request`, `gh api …/pulls` with a body, and any MCP tool named `create_pull_request` (or `pull_request_create`, `createPullRequest`). A PR opened on the web after `git push` happens outside Claude Code and can't be blocked; the PR body built from the receipt is what a reviewer checks.
 7. Can `claude plugin eval` drive our eval (seeded crash → expected outcome), or do we need our own runner as in Veilleur?
 
 ## 10. Sources

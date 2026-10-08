@@ -1,0 +1,43 @@
+- name: |
+    projects/100000000001/apps/1:100000000001:android:00000000000000aa/events/0000000000000000000000000000000B_1000000000000000002
+  issue: |
+    id: 0000000000000000000000000000beef
+    title: com.example.app.feed.FeedPager.<init>
+    subtitle: java.lang.IllegalArgumentException - bad page size
+    errorType: FATAL
+  version: |
+    displayVersion: 2.4-beta
+    buildVersion: '241'
+    displayName: 2.4-beta (241)
+  user: |
+    {}
+  installationUuid: 00000000000000000000000000000000000000000000000000000000000000BB
+  logs: ''
+  blameFrame: |
+    line: '9'
+    file: FeedPager.kt
+    symbol: com.example.app.feed.FeedPager.<init>
+    owner: DEVELOPER
+  exceptions: |-
+    java.lang.RuntimeException: Unable to start activity ComponentInfo{com.example.app/com.example.app.MainActivity}: java.lang.IllegalArgumentException: bad page size
+    at android.app.ActivityThread.performLaunchActivity (ActivityThread.java:4100)
+    at android.app.ActivityThread.main (ActivityThread.java:9884)
+
+    Caused by: java.lang.IllegalArgumentException: bad page size
+    at com.example.app.feed.FeedPager.<init> (FeedPager.kt:9)
+    at com.example.app.MainActivity.onCreate (MainActivity.kt:30)
+    at android.app.Activity.performCreate (Activity.java:9000)
+    ... frames omitted ...
+- name: |
+    projects/100000000001/apps/1:100000000001:android:00000000000000aa/events/0000000000000000000000000000000C_1000000000000000003
+  issue: |
+    id: 0000000000000000000000000000beef
+    title: com.example.app.feed.FeedPager.<init>
+    errorType: FATAL
+  user: |
+    id: user-0043
+  blameFrame: |
+    symbol: com.example.app.feed.FeedPager.<init>
+  exceptions: |-
+    java.lang.IllegalArgumentException: bad page size
+    at com.example.app.feed.FeedPager.<init> (FeedPager.kt:9)
