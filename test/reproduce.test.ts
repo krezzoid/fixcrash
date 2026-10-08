@@ -84,6 +84,26 @@ test('needs a new test in the working tree, and only overlays test files', (t) =
   assert.throws(() => run(dir, base, { test: 'com.example.OtherTest.x' }), /not in the changed test files/);
 });
 
+test('refuses a test that reaches the crash by a shortcut: a spent attempt, not run', (t) => {
+  const { dir, base } = project(t);
+  writeFiles(dir, { [`${TESTS}/ParserTest.kt`]: 'test parsesWithoutAvatar crash\nval p = unsafe.allocateInstance(Parser::class.java)\n' });
+
+  const r = run(dir, base);
+
+  assert.equal(r.status, 'not-reproduced');
+  assert.equal(r.record, undefined, 'not run');
+  assert.match(r.output, /NOT REPRODUCED: the test reaches the crash from a state the app is never in \(app\/src\/test\/java\/com\/example\/ParserTest\.kt: builds an object without its constructor \(Unsafe\), line 2\).*2 attempts left/);
+  assert.deepEqual(r.log.attempts.map((a) => a.reproduced), [false]);
+});
+
+test('a shortcut already in a tracked test file is not the new test\'s', (t) => {
+  const { dir, base } = project(t);
+  commit(dir, { [`${TESTS}/ParserTest.kt`]: 'val legacy = 1\nm.isAccessible = true\n' }, 'an old test');
+  writeFiles(dir, { [`${TESTS}/ParserTest.kt`]: 'test parsesWithoutAvatar crash\nm.isAccessible = true\n' });
+
+  assert.equal(run(dir, base).status, 'reproduced');
+});
+
 test('finds a changed test file that is already tracked', (t) => {
   const { dir, base } = project(t);
   commit(dir, { [`${TESTS}/ParserTest.kt`]: 'test parsesWithoutAvatar pass\n' }, 'a passing test');

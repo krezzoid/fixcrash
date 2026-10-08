@@ -1,0 +1,53 @@
+// A test can throw the crash's exception at the crash's frame from a state the
+// app is never in: an object built without running its constructor, a private
+// member called through reflection. Such a test proves nothing about the
+// crash, so reproduce and verify refuse a test whose new lines take one of
+// these shortcuts. The check reads source text: it stops a careless agent, not
+// a determined one.
+
+export interface Shortcut {
+  /** Relative to the repository root. */
+  file: string;
+  line: number;
+  what: string;
+}
+
+const RULES: { what: string; pattern: RegExp }[] = [
+  { what: 'builds an object without its constructor (Unsafe)', pattern: /\b(?:sun|jdk\.internal)\.misc\.Unsafe\b|\btheUnsafe\b|\ballocateInstance\b/ },
+  { what: 'builds an object without its constructor (Objenesis)', pattern: /\bobjenesis/i },
+  { what: 'builds an object without its constructor (serialization)', pattern: /\bnewConstructorForSerialization\b/ },
+  { what: 'opens a private member through reflection', pattern: /\bisAccessible\s*=\s*true\b|\bsetAccessible\s*\(\s*true\s*\)|\btrySetAccessible\s*\(/ },
+  { what: 'opens a private member through reflection (privateLookupIn)', pattern: /\bprivateLookupIn\s*\(/ },
+  { what: 'calls a private member through Whitebox', pattern: /\bWhitebox\s*\./ },
+];
+
+/** The source's lines with comments blanked out, so line numbers still match. */
+function codeLines(text: string): string[] {
+  const noBlocks = text.replace(/\/\*[\s\S]*?\*\//g, (c) => c.replace(/[^\n]/g, ' '));
+  return noBlocks.split('\n').map((l) => (/^\s*\/\//.test(l) ? '' : l));
+}
+
+/** The shortcuts a test file takes on `lines` (1-based), or anywhere with `'all'`. */
+export function findShortcuts(file: string, text: string, lines: Set<number> | 'all'): Shortcut[] {
+  const found: Shortcut[] = [];
+  codeLines(text).forEach((code, i) => {
+    if (lines !== 'all' && !lines.has(i + 1)) return;
+    for (const r of RULES) if (r.pattern.test(code)) found.push({ file, line: i + 1, what: r.what });
+  });
+  return found;
+}
+
+export function shortcutReason(found: Shortcut[]): string {
+  const byFile = new Map<string, Map<string, number[]>>();
+  for (const s of found) {
+    const whats = byFile.get(s.file) ?? new Map<string, number[]>();
+    byFile.set(s.file, whats);
+    whats.set(s.what, [...(whats.get(s.what) ?? []), s.line]);
+  }
+  const where = [...byFile]
+    .map(([file, whats]) => `${file}: ${[...whats].map(([what, lines]) => `${what}, line${lines.length > 1 ? 's' : ''} ${lines.join(', ')}`).join('; ')}`)
+    .join('; ');
+  return `the test reaches the crash from a state the app is never in (${where}). ` +
+    'Drive the code through its own entry points; if nothing else reaches the crashing line, ' +
+    'report it as not reproduced and say what would (for example Robolectric)';
+}

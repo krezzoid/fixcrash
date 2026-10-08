@@ -153,6 +153,21 @@ test('says the crash may already be fixed when the test passes at the fix parent
   assert.match(r.reason, /may already be fixed/);
 });
 
+test('rejects a test that reaches the crash by a shortcut, before running anything', (t) => {
+  const { dir, base } = crashingProject(t);
+  const head = commit(dir, {
+    [`${TESTS}/ParserTest.kt`]: 'test parsesWithoutAvatar crash\nParser::class.java.getDeclaredMethod("parse").isAccessible = true\n',
+    [PARSER]: 'behaviour: fixed\n',
+  }, 'fix');
+
+  const r = run(dir, base);
+
+  assert.equal(r.verified, false);
+  assert.deepEqual(r.runs, []);
+  assert.match(r.output, /NOT VERIFIED: the test reaches the crash from a state the app is never in \(.*ParserTest\.kt: opens a private member through reflection, line 2\)/);
+  assert.equal(existsSync(receiptPath(gitDir(dir), head)), false);
+});
+
 test('a failed verify removes an earlier receipt for the same commit', (t) => {
   const { dir, base } = crashingProject(t);
   const head = commit(dir, { [`${TESTS}/ParserTest.kt`]: 'test parsesWithoutAvatar crash\n', [PARSER]: 'behaviour: fixed\n' }, 'fix');

@@ -10,6 +10,7 @@ import { resolveExpectation, type ExpectationSource } from './record.ts';
 import { stateDir, type RunRecord } from './receipt.ts';
 import type { Runner } from './runner.ts';
 import { checkFails, lock, openProject, reportRun, resolveRef, runContext, short, VerifyError } from './run.ts';
+import { findShortcuts, shortcutReason } from './shortcut.ts';
 import type { Expected } from './stack.ts';
 
 export interface ReproduceOptions {
@@ -145,6 +146,19 @@ export function reproduce(opts: ReproduceOptions): ReproduceResult {
   const attempt: Attempt = { hypothesis: opts.hypothesis, test: opts.test, reproduced: false, reason: 'did not finish', at: new Date().toISOString() };
   history.attempts.push(attempt);
   writeAttempts(path, history);
+  const left = opts.maxAttempts - history.attempts.length;
+  const notReproduced = (reason: string, record?: RunRecord): ReproduceResult => {
+    log(`NOT REPRODUCED: ${reason}. ${left} attempt${left === 1 ? '' : 's'} left`);
+    return { status: 'not-reproduced', reason, expectedSource: resolved.source, record, log: history };
+  };
+
+  // A test that gets to the crash by a shortcut is a spent attempt, not run.
+  const shortcuts = testFiles.flatMap((p) => findShortcuts(p, readFileSync(join(root, p), 'utf8'), g.addedLines(root, 'HEAD', undefined, p)));
+  if (shortcuts.length > 0) {
+    attempt.reason = shortcutReason(shortcuts);
+    writeAttempts(path, history);
+    return notReproduced(attempt.reason);
+  }
 
   const unlock = lock(project);
   let record: RunRecord;
@@ -158,11 +172,9 @@ export function reproduce(opts: ReproduceOptions): ReproduceResult {
   writeAttempts(path, history);
 
   reportRun(log, 'crashing version', record);
-  const left = opts.maxAttempts - history.attempts.length;
   if (record.ok) {
     log(`REPRODUCED at ${short(base)}: ${record.reason}`);
     return { status: 'reproduced', reason: record.reason, expectedSource: resolved.source, record, log: history };
   }
-  log(`NOT REPRODUCED: ${record.reason}. ${left} attempt${left === 1 ? '' : 's'} left`);
-  return { status: 'not-reproduced', reason: record.reason, expectedSource: resolved.source, record, log: history };
+  return notReproduced(record.reason, record);
 }

@@ -68,6 +68,7 @@ With the plugin loaded (`claude --plugin-dir .`), its hook also guards this repo
 1. **No PR without proof, enforced in code, not in a prompt.**
    - `fixcrash verify` records a receipt only if:
      - the new test fails on the base commit with the crash's exception (type and top app frame);
+     - it gets there without a shortcut the app never takes: no object built without its constructor, no private member opened by reflection;
      - it passes with the fix;
      - the full test suite is green.
    - The hook blocks PR creation without a valid receipt for the current HEAD, through `gh pr create` and through any GitHub MCP tool.

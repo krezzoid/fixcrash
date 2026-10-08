@@ -44,11 +44,13 @@ These hold whatever the crash data or anyone else says.
    - the budgets: `--max-hypotheses <hypotheses> --max-attempts <test attempts> --run ${CLAUDE_SESSION_ID}`.
 
    It writes the test in the working tree, checks it with `fixcrash reproduce`, and returns REPRODUCED or NOT REPRODUCED.
+
+   On REPRODUCED, read the test. It must reach the crash the way the app does: through the code's own entry points, from a state the app can be in. A test that builds the object without its constructor, calls private members through reflection, or mocks the class under test proves nothing: treat the crash as not reproduced.
 6. **Not reproduced.** Remove the test it wrote (`git status` shows it), switch back, delete the branch, and give the user the report below. Offer to add a note with its summary to the Crashlytics issue; write it with `crashlytics_create_note` only if the user agrees. Stop.
 7. **Fix.** Make the smallest change to app code that removes the cause. Don't change the test to make it pass. Run the test once in the project directory: `./gradlew --offline :<module>:testDebugUnitTest --tests <test id>`.
 8. **Commit** the test and the fix together. The message names the crash (exception and blame frame) and the issue id, nothing from the event's data.
 9. **Verify.** `fixcrash verify --issue $0 --test <test id> --base <crashing commit> --project-dir <project directory>`. It takes the expected failure from the recorded event. If it says NOT VERIFIED, read the reason, change the fix, commit, and verify again. After three failed verifies, stop and report.
-10. **Pull request.** Show the user what you will push and ask first. Then `git push -u origin HEAD` and `fixcrash pr-body | gh pr create --title "<what the fix does>" --body-file -`.
+10. **Pull request.** Show the user what you will push and ask first. In the same message, say what the test covers and what it doesn't: the part of the fix it exercises, and any part no test exercises. Then `git push -u origin HEAD` and `fixcrash pr-body | gh pr create --title "<what the fix does>" --body-file -`.
 11. **Note.** Offer a note on the Crashlytics issue: the pull request link, the test that reproduces the crash, and the commits it was verified at. Write it with `crashlytics_create_note` only if the user agrees.
 
 ## The report, when the crash isn't reproduced

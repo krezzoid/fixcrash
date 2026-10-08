@@ -15,6 +15,7 @@ import type { Runner } from './runner.ts';
 import {
   checkFails, checkPasses, lock, openProject, reportRun, resolveRef, runContext, short, VerifyError,
 } from './run.ts';
+import { findShortcuts, shortcutReason } from './shortcut.ts';
 import type { Expected } from './stack.ts';
 
 export { VerifyError } from './run.ts';
@@ -123,6 +124,9 @@ export function verify(opts: VerifyOptions): VerifyResult {
   try {
     // The latest verify of a commit decides: a failed one leaves no receipt behind.
     rmSync(receiptPath(common, head), { force: true });
+
+    const shortcuts = testFiles.flatMap((p) => findShortcuts(p, g.showFile(root, head, p).toString('utf8'), g.addedLines(root, from, head, p)));
+    if (shortcuts.length > 0) return done(shortcutReason(shortcuts));
 
     const b = checkFails(ctx, 'base', base);
     runs.push(b);

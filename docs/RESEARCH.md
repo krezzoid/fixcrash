@@ -281,6 +281,15 @@ These end in an honest report. The plugin's value depends on the share of the fi
 - **The options fix works.** With the defaults written next to each `user_config` placeholder, the agent made no config search: `fixcrash app-id --project-dir .` first, `--tag-pattern 'v{display}'` passed explicitly.
 - **Asking before the push**, the agent used the `AskUserQuestion` tool rather than plain text. The reproducer wrote its test with Edit, so the hook's test-only check saw it, and ended with a `SubagentHandback` call.
 
+**2026-10-08: Third eval run, lifecycle (step 4): a false proof** (Claude Code 2.1.294, `claude-opus-5-5`)
+
+- **Expected** an honest report and no PR. **Got** REPRODUCED and VERIFIED on the first attempt, and a pull request.
+- **The test** built `DetailsFragment` with `sun.misc.Unsafe.allocateInstance`, so its constructor never ran (no `Handler`, no host), and called the private `onDetailsLoaded` through reflection. `requireContext()` threw `IllegalStateException` at the crash's blame frame, so the "same failure" check passed at the crashing commit and at the fix parent.
+- **The reproducer's reason:** the module has no Robolectric, and the fragment's `Handler(Looper.getMainLooper())` field can't be built on the JVM. It took the shortcut without trying anything else.
+- **What the proof covered:** the fix had two parts, cancelling the delayed load in `onDestroyView` (the real fix) and returning early when `context` is null (defensive). The test exercised only the early return. The agent said so to the user, but only after opening the PR.
+- **Lesson:** exception type plus top app frame is necessary, not sufficient. Reflection and constructor bypass reach any frame from any state.
+- **Changes:** `reproduce` and `verify` refuse a test whose new lines build an object without its constructor (`Unsafe`, Objenesis, a serialization constructor) or open a private member (`isAccessible = true`, `setAccessible(true)`, `trySetAccessible`, `privateLookupIn`, Whitebox). The reproducer is told to reach the crash the way the app does, or answer NOT REPRODUCED and name what would (Robolectric). The fix skill reads the test on REPRODUCED, and says what the test covers before asking to push.
+
 **2026-10-07: React Native Firebase.** JS errors go through `recordError` (also the global handler). The JS stack is converted to a mock native exception. Line numbers are relative to the bundle after transpilation and minification, so source maps have to be kept and applied by the developer.
 
 ## 8. Risks

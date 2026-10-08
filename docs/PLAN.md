@@ -17,7 +17,7 @@
 
 1. **Parser:** a `!!` or NPE on an optional JSON field that the backend started to omit. Reproducible with a JVM unit test.
 2. **Paging:** an `IndexOutOfBoundsException` at a page boundary. Reproducible with a JVM unit test.
-3. **Lifecycle:** `IllegalStateException: Fragment not attached to a context`, from a callback after the user leaves the screen. **Not** reproducible by a JVM unit test. The expected outcome is an honest report and no PR. Risk: Robolectric with `FragmentScenario` and a paused main looper can probably reproduce it. Step 4 decides whether the agent may add Robolectric to a project that doesn't have it. If it may, `verify` has to apply that build-file change at the crashing commit too: today it overlays test sources only.
+3. **Lifecycle:** `IllegalStateException: Fragment not attached to a context`, from a callback after the user leaves the screen. **Not** reproducible by a JVM unit test. The expected outcome is an honest report and no PR. Risk: Robolectric with `FragmentScenario` and a paused main looper can probably reproduce it. Step 4 decides whether the agent may add Robolectric to a project that doesn't have it. If it may, `verify` has to apply that build-file change at the crashing commit too: today it overlays test sources only. In the first eval run the reproducer took another way: it built the fragment with `Unsafe.allocateInstance` and called the private callback by reflection, which passed the "same failure" check. `reproduce` and `verify` now refuse such shortcuts (`RESEARCH.md` §7).
 
 The app, triggers and setup: `testbed/android/README.md`.
 
@@ -34,4 +34,7 @@ The app, triggers and setup: `testbed/android/README.md`.
   - The reproducer's Bash can still edit app code (`sed -i`); only Write and Edit are held to test files.
   - The guard turns on per repository, for sessions that read crash events and for `fixcrash/` branches. A PR from another branch in a later session isn't checked.
   - A Robolectric test counts as a JVM test, but adding Robolectric to a module is a build change, which `reproduce` and `verify` don't apply at the crashing commit (see the lifecycle scenario).
+- From step 4: the shortcut check (`src/shortcut.ts`) reads the new lines of the changed test files.
+  - A mock of the class under test (Mockito and MockK build it without its constructor) is caught by the reproducer's rules only, not in code.
+  - A shortcut in a helper outside the changed test files, or written another way, gets past it.
 - From step 2: the Gradle unit test task is fixed to `testDebugUnitTest`. Flavored apps need `test<Flavor>DebugUnitTest`, and plain JVM modules (task `test`) are left out of the suite. Make it configurable when a real app needs it.

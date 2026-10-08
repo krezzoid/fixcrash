@@ -90,6 +90,22 @@ export function showFile(cwd: string, commit: string, path: string): Buffer {
   return r.stdout;
 }
 
+/**
+ * Line numbers (1-based) that `path` adds from `from` to `to`, or to the working
+ * tree when `to` is undefined. A file new since `from` adds every line.
+ */
+export function addedLines(cwd: string, from: string, to: string | undefined, path: string): Set<number> | 'all' {
+  if (tryGit(cwd, ['cat-file', '-e', `${from}:${path}`]) === undefined) return 'all';
+  const out = gitRaw(cwd, ['diff', '-U0', '--no-color', '--no-ext-diff', from, ...(to ? [to] : []), '--', path]);
+  const lines = new Set<number>();
+  for (const m of out.matchAll(/^@@ -\d+(?:,\d+)? \+(\d+)(?:,(\d+))? @@/gm)) {
+    const start = Number(m[1]);
+    const count = m[2] === undefined ? 1 : Number(m[2]);
+    for (let i = 0; i < count; i++) lines.add(start + i);
+  }
+  return lines;
+}
+
 /** The default branch: the remote's HEAD, else a local `main` or `master`. */
 export function defaultBranch(cwd: string): string | undefined {
   const remote = tryGit(cwd, ['symbolic-ref', '--quiet', '--short', 'refs/remotes/origin/HEAD']);

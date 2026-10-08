@@ -16,7 +16,7 @@ If it can't reproduce the crash, it says so: what it tried, what it suspects, an
 AI crash tools explain a crash, suggest a diff, or open a pull request. None of them show that the change fixes *this* crash. fixcrash makes that the only way to get a PR, and checks it in code rather than by the model's word:
 
 - **Reproduce on the version that crashed.** The crashing commit comes from the event's build stamp or a release tag. The test is written in a `git worktree` at that commit.
-- **Same failure, not any failure.** The test must fail with the crash's exception type, and its stack must hit the crash's top app frame.
+- **Same failure, not any failure.** The test must fail with the crash's exception type, and its stack must hit the crash's top app frame. It must get there the way the app does: a test that builds an object without its constructor or calls private members through reflection is refused.
 - **Proof is enforced in code.** `fixcrash verify` writes a receipt bound to the commit only when the test fails before the fix, passes after it, and the full suite is green. A hook blocks PR creation without a valid receipt for `HEAD`.
 - **Honest when it can't.** Hypotheses and test attempts are budgeted. When the budget runs out, you get a report, not a guess shipped as a fix.
 
