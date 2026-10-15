@@ -290,6 +290,24 @@ These end in an honest report. The plugin's value depends on the share of the fi
 - **Lesson:** exception type plus top app frame is necessary, not sufficient. Reflection and constructor bypass reach any frame from any state.
 - **Changes:** `reproduce` and `verify` refuse a test whose new lines build an object without its constructor (`Unsafe`, Objenesis, a serialization constructor) or open a private member (`isAccessible = true`, `setAccessible(true)`, `trySetAccessible`, `privateLookupIn`, Whitebox). The reproducer is told to reach the crash the way the app does, or answer NOT REPRODUCED and name what would (Robolectric). The fix skill reads the test on REPRODUCED, and says what the test covers before asking to push.
 
+**2026-10-15: iOS testbed (step 5.2)** (`testbed/ios`; Xcode 27.0, iOS 27.0 simulator, Swift 6.4, Firebase iOS SDK 13.0.1 through SPM, Apple silicon Mac)
+
+- **Toolchain**
+  - Simulator builds need no Apple account and no signing team.
+  - Resolving Firebase through SPM fetches 13 packages, about 1.4 GB. `xcodebuild -list` resolves too, into the default DerivedData, not into `-derivedDataPath`.
+  - With packages resolved, a clean Debug build plus the three unit tests takes 37 s; a Release build of the app, 14 s.
+  - `xcodebuild test` runs test classes in parallel on clones of the destination simulator (`Clone 1 of iPhone 17`). Its log line is `Test case 'FeedPagerTests.testCountsPartialPage()' passed on …`; the result bundle is `<derivedData>/Logs/Test/Test-<scheme>-<date>.xcresult`.
+- **Project**
+  - With `INFOPLIST_KEY_UIApplicationSceneManifest_Generation = YES` and the app delegate's `configurationForConnecting`, a UIKit app on the UIScene lifecycle needs no `Info.plist` file.
+  - A folder-synchronized target (`PBXFileSystemSynchronizedRootGroup`) builds every file in its folder: a new test file needs no `project.pbxproj` entry.
+  - A unit test target hosted in the app runs the app's launch code. The testbed skips `FirebaseApp.configure()` when `XCTestConfigurationFilePath` is set; an app that doesn't would send Crashlytics a report for each crashing test.
+  - Firebase's `Crashlytics/run` script uploads the dSYM in the background at build time. The testbed runs it with `ENABLE_USER_SCRIPT_SANDBOXING = NO` on the app target (not tried with the sandbox on), and for Release only, so test builds never reach Firebase.
+- **Crashes on the simulator** (local crash reports, `~/Library/Logs/DiagnosticReports/Testbed-<date>.ips`; what Crashlytics shows is step 5.3)
+  - A force unwrap of `nil` and an array index out of range are both `EXC_BREAKPOINT (SIGTRAP)`. The crashed thread's top frame is a pseudo-frame named after the failure, `Swift runtime failure: Unexpectedly found nil while unwrapping an Optional value` or `… Array index is out of range`, even in an optimized Release build. The app frame below it keeps its own name through inlining: `ProfileParser.parse(_:)`, `FeedPager.page(_:)`.
+  - A closure's frame is named `closure #1 in SyncService.start(completion:)`.
+  - `simctl launch <device> <bundle id> -scenario <name>` passes the argument to `UserDefaults`. A crash under `simctl launch` is not caught by a debugger.
+  - A background task the app never ends expires about 30 s after the app leaves the foreground for another app, and the simulator calls its expiration handler (`-[_UIBackgroundTaskInfo fireExpirationHandler]`).
+
 **2026-10-07: React Native Firebase.** JS errors go through `recordError` (also the global handler). The JS stack is converted to a mock native exception. Line numbers are relative to the bundle after transpilation and minification, so source maps have to be kept and applied by the developer.
 
 ## 8. Risks

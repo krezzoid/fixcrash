@@ -1,0 +1,5 @@
+/build
+xcuserdata/
+.DS_Store
+# Firebase app config: never committed
+GoogleService-Info.plist
