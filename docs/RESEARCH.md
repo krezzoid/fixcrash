@@ -357,6 +357,14 @@ These end in an honest report. The plugin's value depends on the share of the fi
 - **A timed-out retry leaves an unfinished result bundle**: a `tests-retry.xcresult` with no `Info.plist`, which `xcresulttool` refuses.
 - **The agent takes xcodebuild's test id form.** In both sessions that verified, the first `fixcrash verify` got `TestbedTests/ProfileParserTests/testParsesProfileWithoutAvatar`, the form of the fix skill's `-only-testing` example.
 
+**2026-10-15: SwiftUI crashes on the simulator (step 5.7.1)** (`testbed/swiftui`, Release build, Xcode 27.0, iOS 27.0 simulator; local crash reports, `~/Library/Logs/DiagnosticReports/TestbedSwiftUI-<date>.ips`; what Crashlytics shows is step 5.7.2)
+
+- All three are `EXC_BREAKPOINT (SIGTRAP)` under a `Swift runtime failure: …` pseudo-frame, as in the UIKit app. SwiftUI's frames are in the images `SwiftUI` and `SwiftUICore`.
+- **render** (an index out of range in the `ForEach` content closure): `Swift runtime failure: Index out of range`, then `specialized Array._checkSubscript(_:wasNativeTypeChecked:)` and `specialized Array.subscript.getter`, both in the app's image, not in `libswiftCore.dylib`, then `closure #1 in closure #1 in TagsView.body.getter (TagsView.swift:10)`, then `ForEachState.item(at:offset:)` in `SwiftUICore`. The view's `body` is a property: its closures are named after its getter, and numbered by nesting (the `List`'s content closure, then the `ForEach`'s inside it).
+- **async** (a force unwrap after an `await`, in a function `.task` calls): `InboxModel.load() (InboxModel.swift:23)`, then `closure #2 in InboxView.body.getter (InboxView.swift:12)`, the `.task` closure, then a `<deduplicated_symbol>` in the app's image and `completeTaskWithClosure` in `libswift_Concurrency.dylib`. The part of `load()` that runs after the `await` is named `load()`.
+- **action** (a force unwrap in a toolbar button's closure): `closure #1 in closure #2 in ArchiveView.body.getter (ArchiveView.swift:26)`, then `MainActor.assumeIsolated` and `ButtonAction.callAsFunction()` in `SwiftUI`.
+- `simctl launch <device> <bundle id> -screen <name>` reaches the app's `App` struct through `UserDefaults`, as in the UIKit app; a `NavigationStack(path:)` built from it opens the screen. `simctl` can't tap; Claude Code's iOS Simulator tool tapped the toolbar button at its point coordinates.
+
 **2026-10-07: React Native Firebase.** JS errors go through `recordError` (also the global handler). The JS stack is converted to a mock native exception. Line numbers are relative to the bundle after transpilation and minification, so source maps have to be kept and applied by the developer.
 
 ## 8. Risks

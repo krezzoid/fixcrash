@@ -60,6 +60,7 @@ package.json, tsconfig.json      dev only (tsc for type checks); no runtime depe
 .git/fixcrash/                   state in the user's repo: worktree, receipts/, events/, attempts/, sessions/, logs, lock
 testbed/android/                 sample app with seeded crashes, used as the eval
 testbed/ios/                     the same for iOS (Swift, UIKit), on a simulator
+testbed/swiftui/                 the same for a SwiftUI app
 testbed/copy-android.sh          copies it into a repository of its own, where the eval runs
 testbed/copy-ios.sh              the same for testbed/ios
 eval/metrics.ts                  eval metrics from Claude Code session transcripts
