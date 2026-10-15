@@ -301,12 +301,29 @@ These end in an honest report. The plugin's value depends on the share of the fi
   - With `INFOPLIST_KEY_UIApplicationSceneManifest_Generation = YES` and the app delegate's `configurationForConnecting`, a UIKit app on the UIScene lifecycle needs no `Info.plist` file.
   - A folder-synchronized target (`PBXFileSystemSynchronizedRootGroup`) builds every file in its folder: a new test file needs no `project.pbxproj` entry.
   - A unit test target hosted in the app runs the app's launch code. The testbed skips `FirebaseApp.configure()` when `XCTestConfigurationFilePath` is set; an app that doesn't would send Crashlytics a report for each crashing test.
-  - Firebase's `Crashlytics/run` script uploads the dSYM in the background at build time. The testbed runs it with `ENABLE_USER_SCRIPT_SANDBOXING = NO` on the app target (not tried with the sandbox on), and for Release only, so test builds never reach Firebase.
+  - Firebase's `Crashlytics/run` script validates, then starts `upload-symbols --build-phase` in the background with its output discarded. Run from Claude Code's Bash tool, that process died with the command: no upload, nothing in the macOS log, and the console showed "This app has 3 unprocessed crashes. Upload 1 dSYM file to process them." The testbed's build phase calls `upload-symbols --build-phase` in the foreground instead ("Successfully submitted symbols for architecture arm64 with UUID …"). It runs with `ENABLE_USER_SCRIPT_SANDBOXING = NO` on the app target (not tried with the sandbox on), and for Release only, so test builds never reach Firebase.
+  - Crashlytics takes crashes without a dSYM, but holds them back: until the dSYM for the binary's UUID arrives, the reports API (`topIssues`) returns nothing for them.
 - **Crashes on the simulator** (local crash reports, `~/Library/Logs/DiagnosticReports/Testbed-<date>.ips`; what Crashlytics shows is step 5.3)
   - A force unwrap of `nil` and an array index out of range are both `EXC_BREAKPOINT (SIGTRAP)`. The crashed thread's top frame is a pseudo-frame named after the failure, `Swift runtime failure: Unexpectedly found nil while unwrapping an Optional value` or `… Array index is out of range`, even in an optimized Release build. The app frame below it keeps its own name through inlining: `ProfileParser.parse(_:)`, `FeedPager.page(_:)`.
   - A closure's frame is named `closure #1 in SyncService.start(completion:)`.
   - `simctl launch <device> <bundle id> -scenario <name>` passes the argument to `UserDefaults`. A crash under `simctl launch` is not caught by a debugger.
   - A background task the app never ends expires about 30 s after the app leaves the foreground for another app, and the simulator calls its expiration handler (`-[_UIBackgroundTaskInfo fireExpirationHandler]`).
+
+**2026-10-15: iOS events through Firebase MCP (step 5.3)** (the testbed's Release build on the iOS 27.0 simulator, Crashlytics SDK 13.0.0, firebase-tools 15.32.1). Answers §9 question 1 for iOS and question 5's `GoogleService-Info.plist` part.
+
+- **Timing:** with the dSYM already uploaded, the three crashes were in `topIssues` within 3 minutes (received 1 to 2 minutes after the crash). The first three crashes, held back for a missing dSYM, still weren't there 15 minutes after it was uploaded.
+- **Issue:** title `[Testbed] <file> - <symbol>`, e.g. `[Testbed] SyncService.swift - closure #1 in SyncService.start(completion:)`; subtitle `EXC_BREAKPOINT`, the Mach exception type only. The Swift runtime message ("Unexpectedly found nil …") is nowhere in the issue or the event.
+- **Event fields**
+  - `platform: IOS`. No `exceptions` and no `buildStamp`; the stack is in `threads`, as text: `Thread:  (crashed)`, then `at <symbol> (<file>:<line>)` lines, cut at 20 frames (`... frames omitted ...`); a frame with no symbol prints as a bare `at`.
+  - `blameFrame` has `symbol`, `file`, `line`, `library: Testbed`, `owner: DEVELOPER`, and `address`: the crash's offset in the app binary (29516 for the parser crash, the `.ips` report's `imageOffset`).
+  - `processState`: `FOREGROUND` for parser and paging, `BACKGROUND` for lifecycle.
+  - `user`, `customKeys`, `logs` and `breadcrumbs` (Analytics `screen_view` and the app's events) arrived only for the lifecycle crash, 30 s after the last action. Parser and paging crash a second after launch and have none of them, the user id included: the SDK writes them asynchronously.
+- **Inlined frames are lost.** Crashlytics symbolicates without inline frames. In the Release build `ProfileParser.parse(_:)` is inlined into `MainViewController.openProfile()` and `FeedPager.page(_:)` into `MainViewController.loadMore()`, so those are the blame frames, and the issues are named after them. A unit test that calls `ProfileParser.parse` directly (Debug, no inlining) never has `openProfile()` on its stack.
+- **The blame frame's file and line can be wrong.** `MainViewController.openProfile() (FakeBackend.swift:6)` for a crash at `ProfileParser.swift:10`; `SyncService.swift:31` for line 28. The symbol is right. (Hypothesis: the line comes from the instruction before the trap, which the compiler places at the end of the function.)
+- **The address recovers what is lost.** `atos -arch arm64 -o <dSYM>/Contents/Resources/DWARF/Testbed -l 0x100000000 -i 0x100000000+<address>` against the build's dSYM gives the full inline chain: `Swift runtime failure: Unexpectedly found nil while unwrapping an Optional value`, `ProfileParser.parse(_:) (ProfileParser.swift:10)`, `MainViewController.openProfile() (MainViewController.swift:50)`. Not yet checked: whether a rebuild of the same commit gives a binary with the same UUID, so a developer's own rebuild can stand in for the shipped dSYM.
+- **fixcrash today:** `toCrashEvent` reads the version and the blame frame, but with no `exceptions`, `expectationOf` returns nothing: the hook records no expected failure for an iOS event. Redaction drops `user` and `installationUuid` as on Android.
+- **Commit (question 1):** no build stamp in iOS events. Without one, the version-to-commit step has the release tag only (`CFBundleShortVersionString`, e.g. `v1.0`).
+- **App id (question 5):** `GOOGLE_APP_ID` in `GoogleService-Info.plist`. `fixcrash app-id` reads only `google-services.json` so far.
 
 **2026-10-07: React Native Firebase.** JS errors go through `recordError` (also the global handler). The JS stack is converted to a mock native exception. Line numbers are relative to the bundle after transpilation and minification, so source maps have to be kept and applied by the developer.
 
@@ -320,11 +337,11 @@ These end in an honest report. The plugin's value depends on the share of the fi
 
 ## 9. Open questions (answer in the spike)
 
-1. ~~Does `buildStamp` carry the git commit on Android, from AGP VCS info in release builds?~~ Answered in §7 (spike). Is there anything comparable on iOS?
+1. ~~Does `buildStamp` carry the git commit on Android, from AGP VCS info in release builds?~~ Answered in §7 (spike). ~~Is there anything comparable on iOS?~~ No: iOS events have no build stamp (§7, step 5.3).
 2. Are 20 frames enough to reach app code in typical Kotlin stacks (coroutines, RxJava, Compose)? Do we need the full event? Partly answered in §7: `blameFrame` survives truncation; real-app stacks still unchecked.
 3. What share of a real app's top crashes can a unit test reproduce? This is the number that decides whether the plugin is useful.
 4. ~~How do Debug builds and emulators report to Crashlytics, and how fast? Do events need a release build with an uploaded mapping?~~ Answered in §7 (spike).
-5. ~~Can `firebase-tools mcp` start with only Crashlytics tools? What does the plugin need for auth and app-id discovery?~~ Answered in §7 (spike) for Android; `GoogleService-Info.plist` waits for iOS.
+5. ~~Can `firebase-tools mcp` start with only Crashlytics tools? What does the plugin need for auth and app-id discovery?~~ Answered in §7 (spike) for Android; for iOS, `GOOGLE_APP_ID` in `GoogleService-Info.plist` (§7, step 5.3).
 6. ~~How does the hook reliably recognise PR creation: `gh pr create` in Bash, GitHub MCP tools, `git push` plus a web PR?~~ Answered in step 3, as far as a hook can: `gh pr create`, `hub pull-request`, `gh api …/pulls` with a body, and any MCP tool named `create_pull_request` (or `pull_request_create`, `createPullRequest`). A PR opened on the web after `git push` happens outside Claude Code and can't be blocked; the PR body built from the receipt is what a reviewer checks.
 7. Can `claude plugin eval` drive our eval (seeded crash → expected outcome), or do we need our own runner as in Veilleur?
 

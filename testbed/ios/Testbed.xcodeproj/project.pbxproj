@@ -208,7 +208,7 @@
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 			shellPath = /bin/sh;
-			shellScript = "# Release builds only. Debug builds, test runs included, have no dSYM and must not reach Firebase.\nif [ \"$CONFIGURATION\" = \"Release\" ]; then\n  \"${BUILD_DIR%/Build/*}/SourcePackages/checkouts/firebase-ios-sdk/Crashlytics/run\"\nfi\n";
+			shellScript = "# Release builds only. Debug builds, test runs included, have no dSYM and must not reach Firebase.\n# Crashlytics/run uploads in a background process, which dies with the shell that ran xcodebuild\n# (a CI job, an agent's command): upload in the foreground instead.\nif [ \"$CONFIGURATION\" = \"Release\" ]; then\n  \"${BUILD_DIR%/Build/*}/SourcePackages/checkouts/firebase-ios-sdk/Crashlytics/upload-symbols\" --build-phase\nfi\n";
 		};
 /* End PBXShellScriptBuildPhase section */
 
