@@ -325,6 +325,23 @@ These end in an honest report. The plugin's value depends on the share of the fi
 - **Commit (question 1):** no build stamp in iOS events. Without one, the version-to-commit step has the release tag only (`CFBundleShortVersionString`, e.g. `v1.0`).
 - **App id (question 5):** `GOOGLE_APP_ID` in `GoogleService-Info.plist`. `fixcrash app-id` reads only `google-services.json` so far.
 
+**2026-10-15: A crashing test on iOS (step 5.4)** (the testbed at `6af448a`, Xcode 27.0, iOS 27.0 simulator; spike tests not committed)
+
+- **The failure**
+  - A Swift trap in a test kills the test host. `xcodebuild test` exits 65 and lists the test as failed with no reason in its log.
+  - The result bundle's summary (`xcrun xcresulttool get test-results summary`) has `failureText: "Crash: Testbed at +[XCTFailableInvocation invokeErrorConventionInvocation:completion:]"`, an XCTest frame, not the crash's.
+  - The crash log is an attachment of the failed test: `xcrun xcresulttool export attachments --path <bundle> --output-path <dir>` writes it as `<id>.ips` with a `manifest.json` that maps `testIdentifier` to the file, with `isAssociatedWithFailure: true`. macOS also writes it to `~/Library/Logs/DiagnosticReports/` and shows its crash dialog.
+  - Its crashed thread, Debug build: `_assertionFailure(_:_:file:line:flags:)` frames in `libswiftCore.dylib`, then `ProfileParser.parse(_:) (ProfileParser.swift:10)` in the image `Testbed.debug.dylib` (Debug builds put the app's code there), then `SpikeCrashTests.testParsesProfileWithoutAvatar()` in the image `TestbedTests`. Exception type `EXC_BREAKPOINT`, as in the event. For an array index: `Array._checkIndex(_:)` and `Array.subscript.getter` in `libswiftCore.dylib`, then `FeedPager.page(_:)`.
+  - The Swift message (`Testbed/ProfileParser.swift:10: Fatal error: Unexpectedly found nil while unwrapping an Optional value`) is in `xcodebuild`'s output only with `-parallel-testing-enabled NO`; it is in neither the crash log nor the result bundle's logs. After the crash: "Restarting after unexpected exit, crash, or test timeout".
+  - Swift Testing: the same, with `Crash: Testbed at specialized static Runner._applyScopingTraits(for:testCase:_:)` and the same crash log attachment.
+- **Test ids for `-only-testing`:** XCTest `TestbedTests/SpikeCrashTests/testParsesProfileWithoutAvatar`, Swift Testing `TestbedTests/SpikeSwiftTestingCrash/pageBeyondLastPartialPage()` (with the parentheses). The result bundle names both `<Suite>/<test>()`.
+- **A new test file** in the folder-synchronized test target built and ran with no change to `project.pbxproj`.
+- **Time and stability**
+  - With a warm build: the testbed's suite 20 s; a targeted crashing test 29 to 34 s, most of it starting and restarting the test host.
+  - Parallel testing (the scheme default) shuts the booted simulator down and boots a clone (`Clone 1 of iPhone 17`) for every run.
+  - Two of five crashing runs hung: one sequential run after the restart, in "Blocking finish to clean up test session" (stopped after 10 min); one parallel run before testing started (stopped by a 150 s guard). The same commands went through on other tries. `run.ts` has one timeout, 30 min, for every command.
+- **A rebuild of the crashing commit:** the testbed rebuilt in Release from a copy at another path had other UUIDs (paths end up in the binary), the same `__text` size, and one different instruction in 545,000 lines of disassembly, a string offset. `atos -i` against the copy's dSYM gave the same inline chains for all three crashes' addresses.
+
 **2026-10-07: React Native Firebase.** JS errors go through `recordError` (also the global handler). The JS stack is converted to a mock native exception. Line numbers are relative to the bundle after transpilation and minification, so source maps have to be kept and applied by the developer.
 
 ## 8. Risks
