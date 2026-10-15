@@ -1,6 +1,8 @@
 # fixcrash — eval
 
-`/fixcrash:fix` on the three seeded crashes of the Android testbed (`docs/PLAN.md`, step 4). The details behind each finding are in `docs/RESEARCH.md` §7.
+`/fixcrash:fix` on the three seeded crashes of each testbed: Android (`docs/PLAN.md`, step 4), then iOS (step 5.6). The details behind each finding are in `docs/RESEARCH.md` §7.
+
+# Android
 
 ## Setup
 
@@ -43,3 +45,34 @@ Tracked in `docs/PLAN.md`, deferred list:
 - A NOT REPRODUCED answer with no `fixcrash reproduce` run. Fine with a concrete reason, as here; a lazy answer looks the same.
 - `claude plugin eval` (`RESEARCH.md` §9, question 7): this eval ran by hand, with `eval/metrics.ts`.
 - The share of a real app's top crashes a unit test can reproduce (`RESEARCH.md` §9, question 3).
+
+# iOS
+
+## Setup
+
+As for Android, with these differences:
+
+- **The app.** `testbed/copy-ios.sh <dest>` copies `testbed/ios` (Swift, UIKit, Crashlytics through SPM); tag `v1.0` is the crashing release, `main` starts 1.1.
+- **The crashes.** The testbed's Release build crashed once per scenario on the iOS 27.0 simulator, through `testbed/ios/trigger-crash.sh`. iOS events carry no commit: tag `v1.0` links version `1.0 (1)` to it. In all three, the blame frame is what Crashlytics shows of a release build: for parser and paging, the caller the crashing function was inlined into.
+- **Runs** go back to `main` between scenarios; when one didn't, the agent asked first.
+
+## Results, 2026-10-15
+
+Claude Code 2.1.300, `claude-opus-5-5`, firebase-tools 15.32.1, Xcode 27.0, Firebase iOS SDK 13.0.1.
+
+| Scenario | Crash (blame frame) | Expected | Outcome | `reproduce` runs | `verify` runs | PR | Agent time | Tool calls | Cost |
+|----------|---------------------|----------|---------|------------------|---------------|----|------------|------------|------|
+| parser | `EXC_BREAKPOINT` at `MainViewController.openProfile()`, crash in `ProfileParser.parse(_:)` | PR | ✅ PR | 1 | 2: wrong test id, verified | yes | 7m 16s | 20 (4 in the reproducer) | $0.80 |
+| paging | `EXC_BREAKPOINT` at `MainViewController.loadMore()`, crash in `FeedPager.page(_:)` | PR | ✅ PR | 1 | 3: wrong test id, unreadable result, verified | yes | 9m 58s | 30 (4 in the reproducer) | $0.91 |
+| lifecycle | `EXC_BREAKPOINT` at `closure #1 in SyncService.start(completion:)` | report, no PR | ✅ report, no PR | 1 | - | no | 2m 16s | 15 (4 in the reproducer) | $0.66 |
+
+## Findings
+
+1. **Crash sites from the crashing commit's own build work (ADR-0002).** For parser and paging, `reproduce` built `v1.0` in Release, read the frames at the event's address, and expected `ProfileParser.parse(_:)` and `FeedPager.page(_:)` instead of their callers. Each reproducer wrote a direct test of that function and reproduced the crash on its first attempt. The pull requests quote the crash site (`the crash is in FeedPager.page(_:)(FeedPager.swift:16), inlined into MainViewController.loadMore() (Swift runtime failure: Array index is out of range)`).
+2. **The honest path holds on iOS.** The lifecycle reproducer reached the exact state (upload done, task still open) in one attempt, saw that only the system calls an expiration handler, and stopped: more attempts couldn't get past it. The report named the cause, the missing seam (an injected wrapper around the background task), a UI test that might reach it, and a defensive change, not committed.
+3. **An iOS fix took four to seven times as long as an Android one.** A run builds the app, a crashing test takes 20 to 30 s, and `verify` makes three runs. Worse, `xcodebuild` hung after a crashing test in about half the runs, and each hang cost the 2-minute timeout (the parser's fix-parent run took 154 s). The hangs came from the diagnostics `xcodebuild` collects after a failure: with `-collect-test-diagnostics never`, which fixcrash now passes, four crashing runs out of four went through, against two of four before, and the crash log is still attached. The parser's `verify` then took 37 s instead of 6.5 minutes.
+4. **Three bugs, now fixed.**
+   - The hangs above.
+   - Both main sessions first passed `verify` the test id in xcodebuild's form, `TestbedTests/ProfileParserTests/testParsesProfileWithoutAvatar`, as in the fix skill's `-only-testing` example. `reproduce` and `verify` now take that form too.
+   - A test step whose retry hung as well left a result bundle without its `Info.plist`; reading it made `verify` exit 2 (paging's second `verify`). Unfinished bundles are now skipped, and such a run says it didn't run.
+5. **The PR body was edited after the guard let the PR through.** The paging session appended Claude Code's attribution line with `gh pr edit`, from the user's settings. The guard checks creating a PR, not editing one; the receipt's proof was untouched.

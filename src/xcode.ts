@@ -2,8 +2,9 @@
 //
 // - It builds once (`build-for-testing`), then runs the tests
 //   (`test-without-building`). A test that crashes kills the app that hosts
-//   it, and xcodebuild sometimes hangs after that: the test step has a short
-//   timeout and one retry.
+//   it. Collecting diagnostics after that hung xcodebuild in half the runs;
+//   with collection off, none did. The test step keeps a short timeout and
+//   one retry anyway.
 // - Parallel testing is off: it boots a clone of the simulator for every run.
 // - Results come from the result bundle, and a crashed test's stack from the
 //   crash log attached to it (docs/RESEARCH.md §7, step 5.4).
@@ -325,11 +326,29 @@ export function parseCrashLog(text: string): Throwable[] {
   return [{ type: body.exception.type, message: body.termination?.indicator ?? '', frames, relation: 'top' }];
 }
 
-/** The test cases in a run's result bundle, with each crashed test's crash log parsed. */
+/**
+ * A run's finished result bundles, the retry's first. A run killed by its
+ * timeout can leave a bundle without its Info.plist, which can't be read.
+ */
+export function resultBundles(out: string): string[] {
+  return ['tests-retry.xcresult', 'tests.xcresult'].map((n) => join(out, n)).filter((p) => existsSync(join(p, 'Info.plist')));
+}
+
+/** The test cases in a run's result bundle, with each crashed test's crash log parsed; none when no bundle can be read. */
 function readResults(out: string, env: NodeJS.ProcessEnv): TestCase[] {
-  const bundle = ['tests-retry.xcresult', 'tests.xcresult'].map((n) => join(out, n)).find((p) => existsSync(p));
-  if (!bundle) return [];
-  const cases = testCasesOf(JSON.parse(xcrun(['xcresulttool', 'get', 'test-results', 'tests', '--path', bundle], env)));
+  for (const bundle of resultBundles(out)) {
+    let tree: { testNodes?: TestNode[] };
+    try {
+      tree = JSON.parse(xcrun(['xcresulttool', 'get', 'test-results', 'tests', '--path', bundle], env));
+    } catch {
+      continue;
+    }
+    return withCrashLogs(testCasesOf(tree), bundle, out, env);
+  }
+  return [];
+}
+
+function withCrashLogs(cases: XcodeTestCase[], bundle: string, out: string, env: NodeJS.ProcessEnv): TestCase[] {
   if (!cases.some((c) => c.status === 'failed')) return cases;
   const attachments = join(out, 'attachments');
   xcrun(['xcresulttool', 'export', 'attachments', '--path', bundle, '--output-path', attachments], env);
@@ -399,13 +418,18 @@ export function xcodebuild(projectDir: string): Runner {
   };
   const releaseProducts = (dirs: RunDirs, site: CrashSite) =>
     join(derivedData(dirs), 'Build', 'Products', site.simulator ? 'Release-iphonesimulator' : 'Release-iphoneos');
-  const testRun = (args: string[], out: string, name: string) =>
-    ['xcodebuild', 'test-without-building', ...args, '-parallel-testing-enabled', 'NO', '-resultBundlePath', join(out, name)];
+  const testRun = (args: string[], out: string, name: string) => [
+    'xcodebuild', 'test-without-building', ...args,
+    '-parallel-testing-enabled', 'NO', '-collect-test-diagnostics', 'never', '-resultBundlePath', join(out, name),
+  ];
 
   return {
     name: 'xcodebuild',
 
     isTestFile: (path) => TEST_FILE.test(path),
+
+    // xcodebuild's `Target/Class/method` -> `Class.method`.
+    testId: (id) => (id.includes('/') ? id.split('/').filter(Boolean).slice(-2).join('.') : id),
 
     locateTest(testId, testFiles) {
       // `Class.method`, `Suite.function()` or `Class`; one test class per file, named after it.

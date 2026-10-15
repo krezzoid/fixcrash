@@ -56,6 +56,7 @@ export function verify(opts: VerifyOptions): VerifyResult {
   const project = openProject(opts.cwd, opts.projectDir, opts.runner);
   const { root, common, runner } = project;
 
+  const test = runner.testId?.(opts.test) ?? opts.test;
   const dirty = g.dirtyFiles(root);
   if (dirty.length > 0) {
     throw new VerifyError(`uncommitted changes (${dirty.slice(0, 3).join(', ')}${dirty.length > 3 ? ', …' : ''}): verify proves a commit, so commit the test and the fix first`);
@@ -97,22 +98,22 @@ export function verify(opts: VerifyOptions): VerifyResult {
   if (fixFiles.length === 0) throw new VerifyError(`only test files changed between ${short(from)} and HEAD: there is no fix`);
 
   const projectTestFiles = testFiles.map((f) => project.toProject(f)!);
-  const targetFile = runner.locateTest(opts.test, projectTestFiles);
+  const targetFile = runner.locateTest(test, projectTestFiles);
   if (!targetFile) {
-    throw new VerifyError(`${opts.test} is not in the test files changed by the fix (${projectTestFiles.join(', ')}): the test must be new or changed`);
+    throw new VerifyError(`${test} is not in the test files changed by the fix (${projectTestFiles.join(', ')}): the test must be new or changed`);
   }
 
   const ctx = runContext(project, {
     logPrefix: short(head),
     timeoutMs: opts.timeoutMs ?? 30 * 60_000,
-    test: opts.test,
+    test,
     targetFile,
     overlay: testFiles.map((path) => ({ path, content: g.showFile(root, head, path) })),
     expected,
   });
 
   if (project.envNote) log(`note: ${project.envNote}`);
-  log(`fixcrash verify: issue ${opts.issue}, test ${opts.test}`);
+  log(`fixcrash verify: issue ${opts.issue}, test ${test}`);
   log(`expect ${expected.exception} at ${expected.frame} (${expectedSource === 'event' ? 'from the recorded Crashlytics event' : 'from the arguments'})`);
   const runs: RunRecord[] = [];
   const done = (reason: string): VerifyResult => {
@@ -162,7 +163,7 @@ export function verify(opts: VerifyOptions): VerifyResult {
       verified: true,
       head, base, from,
       issue: opts.issue,
-      test: opts.test,
+      test,
       expected: ctx.expected,
       expectedSource,
       ...(site.note ? { crashSite: site.chain ? { chain: site.chain, note: site.note } : { note: site.note } } : {}),

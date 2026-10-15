@@ -2,7 +2,9 @@ import assert from 'node:assert/strict';
 import { writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { test } from 'node:test';
-import { type Entry, loadSession, main as metricsMain, parseTranscript, sessionMetrics, table, transcriptDir } from '../eval/metrics.ts';
+import {
+  type Entry, loadSession, main as metricsMain, parseTranscript, runsFixcrash, sessionMetrics, table, transcriptDir,
+} from '../eval/metrics.ts';
 import { tempDir, writeFiles } from './helpers.ts';
 
 const issue = '0123456789abcdef0123456789abcdef';
@@ -199,4 +201,15 @@ test('prints one table row per session', () => {
 
   assert.match(out, /^\| Session \| Issue \| Wall \| Agent \|/);
   assert.match(out, /\| 01234567 \| 01234567 \| 3m 23s \| 1m 13s \| 9 \(3 in subagents\) \| yes, 2 runs \| yes, 2 runs \| https:\/\/github.com\/example\/app\/pull\/7 \| 1 \| \$0\.00 \|/);
+});
+
+test('counts a fixcrash run, not a mention of one in a commit message or a call for help', () => {
+  const commit = "git add -A && git commit -q -F - <<'EOF'\nFix the crash\n\nfixcrash verify proves it.\nEOF";
+
+  assert.equal(runsFixcrash('fixcrash verify --issue x --test T.t --base abc', 'verify'), true);
+  assert.equal(runsFixcrash('git commit -m fix && fixcrash verify --issue x', 'verify'), true);
+  assert.equal(runsFixcrash(`${commit}\nfixcrash verify --issue x`, 'verify'), true);
+  assert.equal(runsFixcrash(commit, 'verify'), false);
+  assert.equal(runsFixcrash('fixcrash verify --help 2>&1 | head -30', 'verify'), false);
+  assert.equal(runsFixcrash('fixcrash reproduce --issue x', 'verify'), false);
 });

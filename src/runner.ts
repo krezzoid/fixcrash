@@ -29,6 +29,8 @@ export interface RunDirs {
 export interface Runner {
   name: string;
   isTestFile(path: string): boolean;
+  /** The test id in the form the other methods take, from another form the build tool also uses. */
+  testId?(id: string): string;
   /** The test file that defines `testId`, among `testFiles`. */
   locateTest(testId: string, testFiles: string[]): string | undefined;
   /** Runs one test. `testFile` is what `locateTest` returned. A step that fails ends the run, unless it is the last. */

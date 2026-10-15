@@ -146,6 +146,16 @@ function costOf(entries: Entry[]): number {
   return [...bySession.values()].reduce((a, b) => a + b, 0);
 }
 
+/**
+ * A shell command that runs `fixcrash <sub>`: not one that only mentions it, in
+ * a heredoc (a commit message) or with `--help`.
+ */
+export function runsFixcrash(command: string, sub: string): boolean {
+  const code = command.replace(/<<-?\s*(['"]?)(\w+)\1[\s\S]*?\n\s*\2(?=\n|$)/g, '');
+  const call = new RegExp(`(?:^|[;&|(\\n]\\s*)fixcrash\\s+${sub}\\b([^;&|\\n]*)`, 'g');
+  return [...code.matchAll(call)].some((m) => !/(^|\s)(--help|-h)(\s|$)/.test(m[1]!));
+}
+
 export function sessionMetrics(session: string, main: Entry[], subagents: Subagent[]): SessionMetrics {
   const all = [main, ...subagents.map((s) => s.entries)];
   const human = main.filter(isHuman);
@@ -232,11 +242,11 @@ export function sessionMetrics(session: string, main: Entry[], subagents: Subage
       const result = results.get(id) ?? { text: '', error: false };
       if (result.error) m.toolErrors++;
       const command = name === 'Bash' && typeof use.input?.command === 'string' ? use.input.command : '';
-      if (/\bfixcrash\s+reproduce\b/.test(command)) {
+      if (runsFixcrash(command, 'reproduce')) {
         m.reproduce.runs++;
         if (/^REPRODUCED at /m.test(result.text)) m.reproduce.reproduced = true;
       }
-      if (/\bfixcrash\s+verify\b/.test(command)) {
+      if (runsFixcrash(command, 'verify')) {
         m.verify.runs++;
         if (/^VERIFIED: /m.test(result.text)) m.verify.verified = true;
       }

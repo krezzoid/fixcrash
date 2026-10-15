@@ -9,7 +9,7 @@ A Claude Code plugin that turns a Firebase Crashlytics crash into a **proven** f
 
 If it can't reproduce the crash, it says so: what it tried, what it suspects, and what data is missing. It opens no pull request.
 
-> **Status: evaluated on the Android testbed.** Of its three seeded crashes, the two a unit test can reach end in a verified pull request, and the one it can't ends in a report and no pull request, each in under two minutes of agent time for under $1. An earlier run got a pull request through with a test that reached the crash by reflection; such tests are now refused ([docs/EVAL.md](docs/EVAL.md)). Not yet tried on a production app. iOS is in progress: `reproduce` and `verify` work on the iOS testbed, its eval is next. Not published yet. See [Roadmap](#roadmap).
+> **Status: evaluated on the Android and iOS testbeds.** Of the Android testbed's three seeded crashes, the two a unit test can reach end in a verified pull request, and the one it can't ends in a report and no pull request, each in under two minutes of agent time for under $1. An earlier run got a pull request through with a test that reached the crash by reflection; such tests are now refused ([docs/EVAL.md](docs/EVAL.md)). On the iOS testbed the same three outcomes held, in two to ten minutes of agent time for under $1 each. Not yet tried on a production app. Not published yet. See [Roadmap](#roadmap).
 
 ## Why
 
@@ -93,7 +93,7 @@ Usually it can't, and fixcrash ends with a report:
 | Platform | Reproduces with | State |
 |----------|-----------------|-------|
 | Android (Kotlin) | JVM unit tests, Robolectric when Android classes are involved | first |
-| iOS (Swift) | XCTest and Swift Testing through `xcodebuild`, on a simulator; release builds' inlined frames recovered from debug symbols | second, in progress |
+| iOS (Swift) | XCTest and Swift Testing through `xcodebuild`, on a simulator; release builds' inlined frames recovered from debug symbols | second |
 | React Native | Jest, plus symbolication of JS stacks from source maps for the crashing commit | third |
 
 ## Safety rules
@@ -139,8 +139,8 @@ In Claude Code:
 | 2 | `fixcrash verify`: fail-before, pass-after, suite-green, receipt | ✅ |
 | 3 | Plugin: skills `triage` and `fix`, `reproducer` subagent, PR guard hook | ✅ |
 | 4 | Eval on the testbed: [results](docs/EVAL.md) | ✅ |
-| 5 | iOS (Swift) | next |
-| 6 | React Native | |
+| 5 | iOS (Swift): testbed, xcodebuild runner, eval | ✅ |
+| 6 | React Native | next |
 | 7 | Publish | |
 
 Details: [docs/PLAN.md](docs/PLAN.md). Eval results: [docs/EVAL.md](docs/EVAL.md). Landscape, data, risks and open questions: [docs/RESEARCH.md](docs/RESEARCH.md).

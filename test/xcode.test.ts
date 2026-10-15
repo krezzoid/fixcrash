@@ -4,7 +4,8 @@ import { test } from 'node:test';
 import { selectCases } from '../src/junit.ts';
 import { matchFailure } from '../src/stack.ts';
 import {
-  crashLogsOf, parseAtos, parseCrashLog, parseOpenStep, pickScheme, pickSimulator, testCasesOf, testTargetOf, testTargetsOf, xcodebuild,
+  crashLogsOf, parseAtos, parseCrashLog, parseOpenStep, pickScheme, pickSimulator, resultBundles, testCasesOf, testTargetOf, testTargetsOf,
+  xcodebuild,
 } from '../src/xcode.ts';
 import { tempDir, writeFiles } from './helpers.ts';
 
@@ -125,7 +126,8 @@ test('builds once, then runs the one test with a timeout and a retry; the suite 
 
   assert.deepEqual(build, { command: ['xcodebuild', 'build-for-testing', ...common] });
   assert.deepEqual(run!.command, [
-    'xcodebuild', 'test-without-building', ...common, '-parallel-testing-enabled', 'NO', '-resultBundlePath', '/out/tests.xcresult',
+    'xcodebuild', 'test-without-building', ...common, '-parallel-testing-enabled', 'NO', '-collect-test-diagnostics', 'never',
+    '-resultBundlePath', '/out/tests.xcresult',
     '-only-testing:AppTests/ProfileParserTests/testParsesProfileWithoutAvatar',
   ]);
   assert.equal(run!.timeoutMs, 2 * 60_000);
@@ -165,4 +167,26 @@ test('reads atos frames, innermost first, with the source file when there is one
     { symbol: 'closure #1 in ProfileViewController.showProfile()', image: 'App', file: 'ProfileViewController.swift', line: 50 },
     { symbol: 'specialized Array.subscript.getter', image: 'App' },
   ]);
+});
+
+test('reads only finished result bundles, the retry\'s first', (t) => {
+  const out = tempDir(t);
+  writeFiles(out, {
+    'tests.xcresult/Info.plist': '<plist/>\n',
+    'tests-retry.xcresult/database.sqlite3': '',
+  });
+
+  assert.deepEqual(resultBundles(out), [`${out}/tests.xcresult`]);
+  writeFiles(out, { 'tests-retry.xcresult/Info.plist': '<plist/>\n' });
+  assert.deepEqual(resultBundles(out), [`${out}/tests-retry.xcresult`, `${out}/tests.xcresult`]);
+});
+
+test('takes xcodebuild\'s form of a test id too', (t) => {
+  const dir = tempDir(t);
+  writeFiles(dir, { 'App.xcodeproj/project.pbxproj': fixture('project.pbxproj') });
+  const runner = xcodebuild(dir);
+
+  assert.equal(runner.testId!('AppTests/ProfileParserTests/testParsesProfileWithoutAvatar'), 'ProfileParserTests.testParsesProfileWithoutAvatar');
+  assert.equal(runner.testId!('AppTests/FeedPagerTests/lastPartialPage()'), 'FeedPagerTests.lastPartialPage()');
+  assert.equal(runner.testId!('ProfileParserTests.testParsesProfileWithoutAvatar'), 'ProfileParserTests.testParsesProfileWithoutAvatar');
 });

@@ -351,6 +351,12 @@ These end in an honest report. The plugin's value depends on the share of the fi
 - **Hangs:** in two of the four runs where the test crashed, `xcodebuild test-without-building` hung after "Restarting after unexpected exit, crash, or test timeout"; never in a run where it didn't. Each time the timeout (5, then 2 minutes) killed it and the retry went through.
 - **The Release build runs the app's build phases.** The testbed's uploaded the worktree build's dSYM to Crashlytics ("Successfully uploaded Crashlytics build event and symbols"), a binary with yet another UUID.
 
+**2026-10-15: The iOS eval (step 5.6)** (Claude Code 2.1.300, `claude-opus-5-5`; results in `docs/EVAL.md`)
+
+- **Why xcodebuild hung after a crashing test.** Eight runs of the same crashing test, alternating `-collect-test-diagnostics on-failure` (the default) and `never`, with a 120 s guard: `on-failure` hung twice in four runs (no result bundle), `never` went through four times out of four in 8 to 22 s, with the crash log attached each time. The hangs are the diagnostics collection after a failure ("verbose diagnostics (like a sysdiagnose)", `xcodebuild -help`).
+- **A timed-out retry leaves an unfinished result bundle**: a `tests-retry.xcresult` with no `Info.plist`, which `xcresulttool` refuses.
+- **The agent takes xcodebuild's test id form.** In both sessions that verified, the first `fixcrash verify` got `TestbedTests/ProfileParserTests/testParsesProfileWithoutAvatar`, the form of the fix skill's `-only-testing` example.
+
 **2026-10-07: React Native Firebase.** JS errors go through `recordError` (also the global handler). The JS stack is converted to a mock native exception. Line numbers are relative to the bundle after transpilation and minification, so source maps have to be kept and applied by the developer.
 
 ## 8. Risks

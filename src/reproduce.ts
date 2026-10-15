@@ -94,6 +94,7 @@ export function reproduce(opts: ReproduceOptions): ReproduceResult {
   const log = opts.log ?? (() => {});
   const project = openProject(opts.cwd, opts.projectDir, opts.runner);
   const { root, common, runner } = project;
+  const test = runner.testId?.(opts.test) ?? opts.test;
   const run = opts.run ?? 'default';
   const path = attemptsPath(common, opts.issue, run);
   const history = readAttempts(path, opts.issue, run);
@@ -111,9 +112,9 @@ export function reproduce(opts: ReproduceOptions): ReproduceResult {
     return rel !== undefined && runner.isTestFile(rel);
   });
   if (testFiles.length === 0) throw new VerifyError('no new or changed test files in the working tree: write the test first');
-  const targetFile = runner.locateTest(opts.test, testFiles.map((f) => project.toProject(f)!));
+  const targetFile = runner.locateTest(test, testFiles.map((f) => project.toProject(f)!));
   if (!targetFile) {
-    throw new VerifyError(`${opts.test} is not in the changed test files (${testFiles.join(', ')})`);
+    throw new VerifyError(`${test} is not in the changed test files (${testFiles.join(', ')})`);
   }
 
   const hypotheses = [...new Set(history.attempts.map((a) => a.hypothesis))];
@@ -131,19 +132,19 @@ export function reproduce(opts: ReproduceOptions): ReproduceResult {
   const ctx = runContext(project, {
     logPrefix: `repro-${opts.issue.slice(0, 12)}-${history.attempts.length + 1}`,
     timeoutMs: opts.timeoutMs ?? 30 * 60_000,
-    test: opts.test,
+    test,
     targetFile,
     overlay: testFiles.map((p) => ({ path: p, content: readFileSync(join(root, p)) })),
     expected: resolved.expected,
   });
 
   if (project.envNote) log(`note: ${project.envNote}`);
-  log(`fixcrash reproduce: issue ${opts.issue}, test ${opts.test}, ${budget}`);
+  log(`fixcrash reproduce: issue ${opts.issue}, test ${test}, ${budget}`);
   log(`hypothesis: ${opts.hypothesis}`);
   log(`expect ${resolved.expected.exception} at ${resolved.expected.frame} (${resolved.source === 'event' ? 'from the recorded Crashlytics event' : 'from the arguments'})`);
 
   // The attempt counts before it runs: a run that dies still used the budget.
-  const attempt: Attempt = { hypothesis: opts.hypothesis, test: opts.test, reproduced: false, reason: 'did not finish', at: new Date().toISOString() };
+  const attempt: Attempt = { hypothesis: opts.hypothesis, test, reproduced: false, reason: 'did not finish', at: new Date().toISOString() };
   history.attempts.push(attempt);
   writeAttempts(path, history);
   const left = opts.maxAttempts - history.attempts.length;
