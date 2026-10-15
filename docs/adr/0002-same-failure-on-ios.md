@@ -87,7 +87,7 @@ For the crashing commit, a custom key with the commit was considered: it needs a
 
 ## Action items
 
-1. [ ] The hook records `blameFrame.address`, the platform and the Mach exception type for iOS events.
-2. [ ] `reproduce` and `verify`: Release build at the crashing commit, `atos`, the consistency check, the fallback, the match against the failed test's crash log.
-3. [ ] Unit tests with fixtures from the testbed: an event, an `atos` chain, a test crash log.
+1. [x] The hook records `blameFrame.address`, the platform and the Mach exception type for iOS events.
+2. [x] `reproduce` and `verify`: Release build at the crashing commit, `atos`, the consistency check, the fallback, the match against the failed test's crash log.
+3. [x] Unit tests with fixtures from the testbed: an event, an `atos` chain, a test crash log.
 4. [ ] Try an `NSException` crash on the testbed.

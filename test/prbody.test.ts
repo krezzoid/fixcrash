@@ -45,3 +45,14 @@ test('says when the fix starts at the crashing version', () => {
 
   assert.match(body, /\| Where the fix starts \| `aaaaaaaaaaaa` \| same commit as the crashing version \|/);
 });
+
+test('says what the release build showed at an iOS crash site', () => {
+  const ios: Receipt = {
+    ...receipt,
+    expected: { exception: 'EXC_BREAKPOINT', frame: 'ProfileParser.parse(_:)' },
+    crashSite: { note: 'the crash is in ProfileParser.parse(_:)(ProfileParser.swift:10), inlined into ProfileViewController.showProfile()' },
+  };
+
+  assert.match(prBody(ios), /^- Crash site, from a release build of the crashing version: the crash is in ProfileParser\.parse\(_:\)\(ProfileParser\.swift:10\), inlined into ProfileViewController\.showProfile\(\)\.$/m);
+  assert.doesNotMatch(prBody(receipt), /Crash site/);
+});

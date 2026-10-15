@@ -1,0 +1,20 @@
+[
+  {
+    "attachments" : [
+      {
+        "configurationName" : "Test Scheme Action",
+        "deviceName" : "iPhone 17",
+        "exportedFileName" : "0000000A-0000-0000-0000-00000000000A.ips",
+        "isAssociatedWithFailure" : true,
+        "suggestedHumanReadableName" : "Crash Log 2026-01-02 at 10.00.00 AM.ips",
+        "timestamp" : 1767348000
+      },
+      {
+        "exportedFileName" : "0000000B-0000-0000-0000-00000000000B.txt",
+        "isAssociatedWithFailure" : false,
+        "suggestedHumanReadableName" : "Note.txt"
+      }
+    ],
+    "testIdentifier" : "ProfileParserTests/testParsesProfileWithoutAvatar()"
+  }
+]

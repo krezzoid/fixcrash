@@ -44,8 +44,8 @@ export function commit(dir: string, files: Record<string, string>, message: stri
 export const fakeRunner: Runner = {
   ...gradle,
   name: 'fake',
-  targetCommand: (testId) => [process.execPath, 'fake-runner.mjs', 'target', testId],
-  suiteCommand: () => [process.execPath, 'fake-runner.mjs', 'suite'],
+  targetSteps: (testId) => [{ command: [process.execPath, 'fake-runner.mjs', 'target', testId] }],
+  suiteSteps: () => [{ command: [process.execPath, 'fake-runner.mjs', 'suite'] }],
   environment: () => undefined,
 };
 

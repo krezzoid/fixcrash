@@ -1,6 +1,8 @@
 // A test can throw the crash's exception at the crash's frame from a state the
 // app is never in: an object built without running its constructor, a private
-// member called through reflection. Such a test proves nothing about the
+// member called through reflection, a system method swapped for the test's own
+// (swizzling: say, to call a background task's expiration handler while the
+// app is in the foreground). Such a test proves nothing about the
 // crash, so reproduce and verify refuse a test whose new lines take one of
 // these shortcuts. The check reads source text: it stops a careless agent, not
 // a determined one.
@@ -19,6 +21,15 @@ const RULES: { what: string; pattern: RegExp }[] = [
   { what: 'opens a private member through reflection', pattern: /\bisAccessible\s*=\s*true\b|\bsetAccessible\s*\(\s*true\s*\)|\btrySetAccessible\s*\(/ },
   { what: 'opens a private member through reflection (privateLookupIn)', pattern: /\bprivateLookupIn\s*\(/ },
   { what: 'calls a private member through Whitebox', pattern: /\bWhitebox\s*\./ },
+  // Swift and Objective-C.
+  {
+    what: 'swaps a method\'s implementation (swizzling)',
+    pattern: /\b(?:method_exchangeImplementations|method_setImplementation|class_replaceMethod)\s*\(|@_dynamicReplacement\b/,
+  },
+  { what: 'builds an object without its initializer', pattern: /\bclass_createInstance\s*\(|\bunsafeBitCast\s*\(/ },
+  { what: 'calls a private member by selector', pattern: /\bperform\s*\(\s*(?:NSSelectorFromString\s*\(|Selector\s*\(\s*\()/ },
+  { what: 'reads or sets a private member by key (KVC)', pattern: /\.(?:value|setValue)\s*\([^)]*\bforKey(?:Path)?\s*:/ },
+  { what: 'reads a private member through Mirror', pattern: /\bMirror\s*\(\s*reflecting\s*:/ },
 ];
 
 /** The source's lines with comments blanked out, so line numbers still match. */
@@ -49,5 +60,5 @@ export function shortcutReason(found: Shortcut[]): string {
     .join('; ');
   return `the test reaches the crash from a state the app is never in (${where}). ` +
     'Drive the code through its own entry points; if nothing else reaches the crashing line, ' +
-    'report it as not reproduced and say what would (for example Robolectric)';
+    'report it as not reproduced and say what would (for example Robolectric, or a UI test)';
 }

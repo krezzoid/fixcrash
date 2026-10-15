@@ -1,7 +1,26 @@
 import { spawnSync } from 'node:child_process';
-import { existsSync, readdirSync } from 'node:fs';
+import { existsSync, readdirSync, readFileSync, unlinkSync } from 'node:fs';
 import { homedir } from 'node:os';
 import { join } from 'node:path';
+import { parseJUnit, type TestCase } from './junit.ts';
+import type { CrashSite, Frame } from './stack.ts';
+
+/** One command of a run. */
+export interface Step {
+  command: string[];
+  /** Kills the command after this long; default: the run's timeout. */
+  timeoutMs?: number;
+  /** Runs once when the timeout killed `command`: a test runner that sometimes hangs after a crash. */
+  retry?: string[];
+}
+
+/** Where a run keeps what it makes. */
+export interface RunDirs {
+  /** Empty when the run starts: this run's results. */
+  out: string;
+  /** Kept between runs and commits: build caches. */
+  cache: string;
+}
 
 /**
  * How to run tests for one build tool. Paths are POSIX and relative to the
@@ -12,12 +31,23 @@ export interface Runner {
   isTestFile(path: string): boolean;
   /** The test file that defines `testId`, among `testFiles`. */
   locateTest(testId: string, testFiles: string[]): string | undefined;
-  /** Runs one test. `testFile` is what `locateTest` returned. */
-  targetCommand(testId: string, testFile: string): string[];
+  /** Runs one test. `testFile` is what `locateTest` returned. A step that fails ends the run, unless it is the last. */
+  targetSteps(testId: string, testFile: string, dirs: RunDirs): Step[];
   /** Runs the full unit test suite. */
-  suiteCommand(): string[];
-  /** JUnit XML reports present in a project directory. */
-  reportFiles(projectDir: string): string[];
+  suiteSteps(dirs: RunDirs): Step[];
+  /** Removes results an earlier run left in the project directory (an absolute path). */
+  clean(projectDir: string): void;
+  /** The test cases the run produced. Throws when a result can't be read. */
+  results(projectDir: string, dirs: RunDirs): TestCase[];
+  /**
+   * The binaries test code is built into, for crash logs that name each frame's binary.
+   * Without it, test frames are told by their source file.
+   */
+  testImages?(testFiles: string[]): Set<string>;
+  /** Apple platforms (ADR-0002): builds the code as it ships, with debug symbols, for `inlineFrames`. */
+  releaseSteps?(dirs: RunDirs, site: CrashSite): Step[];
+  /** The frames at the crash site in that build, innermost first, inlined ones included. Throws when it can't tell. */
+  inlineFrames?(dirs: RunDirs, site: CrashSite): Frame[];
   /** Untracked files the build needs (e.g. `local.properties`), by name, copied from the checkout. */
   localFiles: string[];
   /** Extra environment for the commands, and a line saying why, or undefined. */
@@ -123,15 +153,30 @@ export const gradle: Runner = {
     return undefined;
   },
 
-  targetCommand(testId, testFile) {
+  targetSteps(testId, testFile) {
     const moduleDir = testFile.slice(0, testFile.search(GRADLE_TEST_DIR));
     const modulePath = moduleDir ? `:${moduleDir.replace(/\//g, ':')}` : '';
-    return ['./gradlew', ...GRADLE_FLAGS, `${modulePath}:${GRADLE_TASK}`, '--tests', testId];
+    return [{ command: ['./gradlew', ...GRADLE_FLAGS, `${modulePath}:${GRADLE_TASK}`, '--tests', testId] }];
   },
 
-  suiteCommand: () => ['./gradlew', ...GRADLE_FLAGS, '--continue', GRADLE_TASK],
+  suiteSteps: () => [{ command: ['./gradlew', ...GRADLE_FLAGS, '--continue', GRADLE_TASK] }],
 
-  reportFiles: gradleReports,
+  clean(projectDir) {
+    // Stale reports from an earlier run would be read as this run's results.
+    for (const r of gradleReports(projectDir)) unlinkSync(r);
+  },
+
+  results(projectDir) {
+    const cases: TestCase[] = [];
+    for (const r of gradleReports(projectDir)) {
+      try {
+        cases.push(...parseJUnit(readFileSync(r, 'utf8')));
+      } catch (e) {
+        throw new Error(`cannot read test report ${r}: ${(e as Error).message}`);
+      }
+    }
+    return cases;
+  },
 
   localFiles: ['local.properties', 'google-services.json'],
 
@@ -156,9 +201,3 @@ export const gradle: Runner = {
     return undefined;
   },
 };
-
-/** The runner for a project directory, or undefined when no supported build tool is found. */
-export function detectRunner(projectDir: string): Runner | undefined {
-  if (existsSync(join(projectDir, 'gradlew'))) return gradle;
-  return undefined;
-}

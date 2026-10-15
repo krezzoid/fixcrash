@@ -1,6 +1,8 @@
 // Reads JUnit XML test reports: the format Gradle writes natively, and Jest
 // (jest-junit) and Xcode (xcresult converters) can write too.
 
+import type { Throwable } from './stack.ts';
+
 export type TestStatus = 'passed' | 'failed' | 'skipped';
 
 export interface TestFailure {
@@ -9,6 +11,8 @@ export interface TestFailure {
   message: string;
   /** Element body: for JVM tools, the full stack trace. */
   text: string;
+  /** The failure already parsed, when the runner reads it from elsewhere (an Xcode crash log). */
+  chain?: Throwable[];
 }
 
 export interface TestCase {
@@ -107,6 +111,7 @@ export function parseJUnit(xml: string): TestCase[] {
 /**
  * Test cases selected by a test id: `Class.method` matches that method (and its
  * parameterized variants, `method[0]`); `Class` matches every method of the class.
+ * A Swift Testing id, `Suite.function()`, matches `function`.
  */
 export function selectCases(cases: TestCase[], testId: string): TestCase[] {
   const byClass = cases.filter((c) => c.classname === testId);
@@ -114,7 +119,7 @@ export function selectCases(cases: TestCase[], testId: string): TestCase[] {
   const dot = testId.lastIndexOf('.');
   if (dot < 0) return [];
   const cls = testId.slice(0, dot);
-  const method = testId.slice(dot + 1);
+  const method = testId.slice(dot + 1).replace(/\(\)$/, '');
   return cases.filter(
     (c) => c.classname === cls && (c.name === method || c.name.startsWith(`${method}[`)),
   );

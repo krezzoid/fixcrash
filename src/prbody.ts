@@ -1,5 +1,6 @@
 // `fixcrash pr-body`: the pull request description, built from the receipt
-// only. It carries class names, file paths, shas and counts; no event data.
+// only. It carries class names, file paths, shas and counts, and on iOS what
+// the crashing commit's own debug symbols say about the crash site; no event data.
 
 import type { Receipt, RunRecord } from './receipt.ts';
 
@@ -47,6 +48,7 @@ export function prBody(r: Receipt): string {
     `- Test: ${r.testFiles.map((f) => `\`${f}\``).join(', ')}`,
     `- Fix: ${r.fixFiles.map((f) => `\`${f}\``).join(', ')}`,
     `- Expected failure (exception type and blame frame): from ${source}.`,
+    ...(r.crashSite ? [`- Crash site, from a release build of the crashing version: ${r.crashSite.note}.`] : []),
     '',
     `<sub>fixcrash ${r.fixcrash}, receipt for \`${r.head}\`.</sub>`,
     '',

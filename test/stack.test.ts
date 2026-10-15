@@ -105,3 +105,17 @@ test('tells test frames from app frames with the same file name by package', () 
   assert.equal(isTest({ symbol: 'com.example.app.UtilsKt.parse', file: 'Utils.kt', line: 3 }), false);
   assert.equal(isTest({ symbol: 'java.util.ArrayList.subList' }), false);
 });
+
+test('matches a Swift frame with or without the specialization prefix', () => {
+  const frames = [
+    { symbol: '_assertionFailure(_:_:file:line:flags:)', image: 'libswiftCore.dylib' },
+    { symbol: 'FeedPager.page(_:)', file: 'FeedPager.swift', line: 16, image: 'App.debug.dylib' },
+    { symbol: 'FeedPagerTests.testLastPage()', file: 'FeedPagerTests.swift', line: 9, image: 'AppTests' },
+  ];
+  const chain = [{ type: 'EXC_BREAKPOINT', message: '', frames, relation: 'top' as const }];
+
+  const m = matchFailure(chain, { exception: 'EXC_BREAKPOINT', frame: 'specialized FeedPager.page(_:)' }, noTestCode);
+
+  assert.ok(m.ok);
+  assert.equal(m.frameIndex, 1);
+});

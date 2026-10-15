@@ -47,6 +47,21 @@ test('resolves the expectation from the record, or from the caller when none is 
   assert.equal(resolveExpectation(gitDir, 'issue-1', other).source, 'event');
 });
 
+test('carries an iOS crash site from the event, never from the caller', (t) => {
+  const gitDir = tempDir(t);
+  const ios = { exception: 'EXC_BREAKPOINT', frame: 'ProfileViewController.showProfile()' };
+  const site = { image: 'App', address: 29516, simulator: false };
+  const forged = { ...ios, site: { ...site, address: 1 } };
+
+  assert.deepEqual(resolveExpectation(gitDir, 'issue-3', forged), { expected: ios, source: 'arguments' });
+
+  recordEvent(gitDir, parserEvent('issue-3', {
+    platform: 'IOS', machException: 'EXC_BREAKPOINT', exceptions: [], blameFrame: { symbol: ios.frame }, site,
+  }));
+  assert.deepEqual(resolveExpectation(gitDir, 'issue-3'), { expected: { ...ios, site }, source: 'event' });
+  assert.deepEqual(resolveExpectation(gitDir, 'issue-3', forged).expected, { ...ios, site });
+});
+
 test('marks sessions', (t) => {
   const gitDir = tempDir(t);
 

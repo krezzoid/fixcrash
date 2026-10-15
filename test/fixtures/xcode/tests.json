@@ -1,0 +1,64 @@
+{
+  "devices" : [ { "deviceName" : "iPhone 17", "osVersion" : "27.0", "platform" : "iOS Simulator" } ],
+  "testNodes" : [
+    {
+      "name" : "App",
+      "nodeType" : "Test Plan",
+      "result" : "Failed",
+      "children" : [
+        {
+          "name" : "AppTests",
+          "nodeType" : "Unit test bundle",
+          "result" : "Failed",
+          "children" : [
+            {
+              "name" : "ProfileParserTests",
+              "nodeType" : "Test Suite",
+              "nodeIdentifierURL" : "test://com.apple.xcode/App/AppTests/ProfileParserTests",
+              "result" : "Failed",
+              "children" : [
+                {
+                  "name" : "testParsesFullProfile()",
+                  "nodeIdentifier" : "ProfileParserTests/testParsesFullProfile()",
+                  "nodeType" : "Test Case",
+                  "result" : "Passed"
+                },
+                {
+                  "name" : "testParsesProfileWithoutAvatar()",
+                  "nodeIdentifier" : "ProfileParserTests/testParsesProfileWithoutAvatar()",
+                  "nodeType" : "Test Case",
+                  "result" : "Failed",
+                  "children" : [
+                    { "name" : "Crash: App at +[XCTFailableInvocation invokeErrorConventionInvocation:completion:]", "nodeType" : "Failure Message" }
+                  ]
+                }
+              ]
+            },
+            {
+              "name" : "FeedPagerTests",
+              "nodeType" : "Test Suite",
+              "result" : "Failed",
+              "children" : [
+                {
+                  "name" : "lastPartialPage()",
+                  "nodeIdentifier" : "FeedPagerTests/lastPartialPage()",
+                  "nodeType" : "Test Case",
+                  "result" : "Failed",
+                  "children" : [
+                    { "name" : "Expectation failed: (page.count → 2) == 3", "nodeType" : "Failure Message" }
+                  ]
+                },
+                {
+                  "name" : "emptyFeed()",
+                  "nodeIdentifier" : "FeedPagerTests/emptyFeed()",
+                  "nodeType" : "Test Case",
+                  "result" : "Skipped"
+                }
+              ]
+            }
+          ]
+        }
+      ]
+    }
+  ]
+}

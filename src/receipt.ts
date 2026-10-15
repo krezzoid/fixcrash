@@ -49,6 +49,8 @@ export interface Receipt {
   expected: Expected;
   /** Where `expected` came from: the Crashlytics event recorded by the hook, or verify's arguments. */
   expectedSource: ExpectationSource;
+  /** Apple platforms (ADR-0002): the frames at the crash site in the release build, and what they showed. */
+  crashSite?: { chain?: string[]; note: string };
   projectDir: string;
   runner: string;
   testFiles: string[];

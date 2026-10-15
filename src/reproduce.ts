@@ -9,7 +9,7 @@ import * as g from './git.ts';
 import { resolveExpectation, type ExpectationSource } from './record.ts';
 import { stateDir, type RunRecord } from './receipt.ts';
 import type { Runner } from './runner.ts';
-import { checkFails, lock, openProject, reportRun, resolveRef, runContext, short, VerifyError } from './run.ts';
+import { checkFails, lock, openProject, reportRun, resolveRef, resolveSite, runContext, short, VerifyError } from './run.ts';
 import { findShortcuts, shortcutReason } from './shortcut.ts';
 import type { Expected } from './stack.ts';
 
@@ -163,6 +163,12 @@ export function reproduce(opts: ReproduceOptions): ReproduceResult {
   const unlock = lock(project);
   let record: RunRecord;
   try {
+    const site = resolveSite(ctx, base);
+    if (site.note) {
+      log(`crash site: ${site.note}`);
+      ctx.expected = site.expected;
+      log(`expect ${ctx.expected.exception} at ${ctx.expected.frame}`);
+    }
     record = checkFails(ctx, 'base', base);
   } finally {
     unlock();

@@ -6,6 +6,8 @@
 // prints `js-yaml.dump(events)`, where each event is a map from field name to
 // a string: nested objects are YAML-dumped first, stack traces are text.
 
+import type { CrashSite } from './stack.ts';
+
 /** One top-level field of a printed event, with the lines it spans. */
 interface Field {
   key: string;
@@ -150,18 +152,29 @@ export interface CrashEvent {
   issueId: string;
   issueTitle: string;
   errorType: string;
+  /** `ANDROID`, `IOS`, … */
+  platform?: string;
+  /** Apple platforms: the Mach exception or signal in the issue subtitle, e.g. `EXC_BREAKPOINT`. */
+  machException?: string;
   variant?: string;
   version?: { display: string; build: string };
   /** The git commit the build was made from, from the build stamp. */
   revision?: string;
   blameFrame?: EventFrame;
+  /** Apple platforms: where the blame frame's crash is in the shipped binary. */
+  site?: CrashSite;
   exceptions: EventThrowable[];
 }
 
 export interface Expectation {
   exception: string;
   frame: string;
+  /** Apple platforms: where the crash is in the shipped binary, to recover the frames inlined into `frame`. */
+  site?: CrashSite;
 }
+
+const APPLE_PLATFORMS = new Set(['IOS', 'MACOS', 'TVOS']);
+const MACH_EXCEPTION = /^(EXC_[A-Z_]+|SIG[A-Z]+)\b/;
 
 export function toCrashEvent(fields: Field[]): CrashEvent | undefined {
   const get = (k: string) => fields.find((f) => f.key === k)?.value;
@@ -174,6 +187,10 @@ export function toCrashEvent(fields: Field[]): CrashEvent | undefined {
     errorType: issue.errorType ?? '',
     exceptions: parseEventExceptions(get('exceptions') ?? ''),
   };
+  const platform = (get('platform') ?? '').trim();
+  if (platform) event.platform = platform;
+  const mach = APPLE_PLATFORMS.has(platform) ? (issue.subtitle ?? '').match(MACH_EXCEPTION)?.[1] : undefined;
+  if (mach) event.machException = mach;
   const variant = parseFlatMap(get('issueVariant') ?? '').id;
   if (variant) event.variant = variant;
   const version = parseFlatMap(get('version') ?? '');
@@ -185,6 +202,10 @@ export function toCrashEvent(fields: Field[]): CrashEvent | undefined {
     event.blameFrame = { symbol: blame.symbol };
     if (blame.file) event.blameFrame.file = blame.file;
     if (blame.line && /^\d+$/.test(blame.line)) event.blameFrame.line = Number(blame.line);
+    if (mach && blame.library && blame.address && /^\d+$/.test(blame.address)) {
+      const model = parseFlatMap(get('device') ?? '').model ?? '';
+      event.site = { image: blame.library, address: Number(blame.address), simulator: /Simulator/.test(model) };
+    }
   }
   return event;
 }
@@ -194,10 +215,19 @@ export function toCrashEvent(fields: Field[]): CrashEvent | undefined {
  * whose stack holds it. When the frame is in a cause (`RuntimeException:
  * Unable to start activity` caused by the real one), the deepest such cause
  * wins: Crashlytics groups the issue by it, and a JVM test throws it directly.
+ *
+ * An Apple crash has no exceptions, only the Mach exception in the issue
+ * subtitle (`EXC_BREAKPOINT` for every Swift runtime trap), and the blame
+ * frame's address: with the crashing build's debug symbols, it recovers the
+ * frames that the optimizer inlined into the blame frame (ADR-0002).
  */
 export function expectationOf(event: CrashEvent): Expectation | undefined {
   const frame = event.blameFrame?.symbol;
-  if (!frame || event.exceptions.length === 0) return undefined;
+  if (!frame) return undefined;
+  if (event.exceptions.length === 0) {
+    if (!event.machException) return undefined;
+    return event.site ? { exception: event.machException, frame, site: event.site } : { exception: event.machException, frame };
+  }
   const holding = event.exceptions.filter((t) => t.frames.some((f) => f.symbol === frame));
   const thrown = holding[holding.length - 1] ?? event.exceptions[event.exceptions.length - 1]!;
   return { exception: thrown.type, frame };

@@ -9,7 +9,7 @@ A Claude Code plugin that turns a Firebase Crashlytics crash into a **proven** f
 
 If it can't reproduce the crash, it says so: what it tried, what it suspects, and what data is missing. It opens no pull request.
 
-> **Status: evaluated on the Android testbed.** Of its three seeded crashes, the two a unit test can reach end in a verified pull request, and the one it can't ends in a report and no pull request, each in under two minutes of agent time for under $1. An earlier run got a pull request through with a test that reached the crash by reflection; such tests are now refused ([docs/EVAL.md](docs/EVAL.md)). Not yet tried on a production app. Android only. Not published yet. See [Roadmap](#roadmap).
+> **Status: evaluated on the Android testbed.** Of its three seeded crashes, the two a unit test can reach end in a verified pull request, and the one it can't ends in a report and no pull request, each in under two minutes of agent time for under $1. An earlier run got a pull request through with a test that reached the crash by reflection; such tests are now refused ([docs/EVAL.md](docs/EVAL.md)). Not yet tried on a production app. iOS is in progress: `reproduce` and `verify` work on the iOS testbed, its eval is next. Not published yet. See [Roadmap](#roadmap).
 
 ## Why
 
@@ -93,7 +93,7 @@ Usually it can't, and fixcrash ends with a report:
 | Platform | Reproduces with | State |
 |----------|-----------------|-------|
 | Android (Kotlin) | JVM unit tests, Robolectric when Android classes are involved | first |
-| iOS (Swift) | `xcodebuild test -only-testing`, `swift test` | second |
+| iOS (Swift) | XCTest and Swift Testing through `xcodebuild`, on a simulator; release builds' inlined frames recovered from debug symbols | second, in progress |
 | React Native | Jest, plus symbolication of JS stacks from source maps for the crashing commit | third |
 
 ## Safety rules
@@ -119,7 +119,7 @@ cd your-android-app
 claude --plugin-dir ../fixcrash
 ```
 
-The plugin's options (Firebase app id, Android project directory, release tag pattern, budgets) default to an app at the repository root, with the app id read from `google-services.json`.
+The plugin's options (Firebase app id, project directory, release tag pattern, budgets) default to an app at the repository root, with the app id read from `google-services.json` or `GoogleService-Info.plist`.
 
 ## Install (once published)
 

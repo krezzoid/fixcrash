@@ -86,11 +86,13 @@ export function resolveExpectation(
   const record = readRecord(gitCommonDir, issue);
   const recorded = record?.expectations ?? [];
   const list = recorded.map((e) => `${e.exception} at ${e.frame}`).join('; ');
+  // The crash site comes from the event only, never from the caller.
+  const fromEvent = ({ exception, frame, site }: RecordedExpectation): Expectation =>
+    site ? { exception, frame, site } : { exception, frame };
   if (given) {
-    if (recorded.length === 0) return { expected: given, source: 'arguments' };
-    if (recorded.some((e) => e.exception === given.exception && e.frame === given.frame)) {
-      return { expected: given, source: 'event' };
-    }
+    if (recorded.length === 0) return { expected: { exception: given.exception, frame: given.frame }, source: 'arguments' };
+    const match = recorded.find((e) => e.exception === given.exception && e.frame === given.frame);
+    if (match) return { expected: fromEvent(match), source: 'event' };
     throw new Error(`issue ${issue}'s recorded events expect ${list}, not ${given.exception} at ${given.frame}`);
   }
   if (recorded.length === 0) {
@@ -99,8 +101,7 @@ export function resolveExpectation(
     );
   }
   if (recorded.length > 1) throw new Error(`issue ${issue} has several recorded failures (${list}): pass --exception and --frame to pick one`);
-  const { exception, frame } = recorded[0]!;
-  return { expected: { exception, frame }, source: 'event' };
+  return { expected: fromEvent(recorded[0]!), source: 'event' };
 }
 
 /** Marks a session as one that read crash events in this repository: the PR guard applies to it. */

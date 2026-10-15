@@ -61,6 +61,7 @@ package.json, tsconfig.json      dev only (tsc for type checks); no runtime depe
 testbed/android/                 sample app with seeded crashes, used as the eval
 testbed/ios/                     the same for iOS (Swift, UIKit), on a simulator
 testbed/copy-android.sh          copies it into a repository of its own, where the eval runs
+testbed/copy-ios.sh              the same for testbed/ios
 eval/metrics.ts                  eval metrics from Claude Code session transcripts
 ```
 
@@ -116,7 +117,7 @@ claude plugin validate .            # the marketplace, then the plugin it lists 
 claude --plugin-dir .               # Claude Code with the plugin loaded from this checkout
 ```
 
-`reproduce` and `verify` take the expected failure from the event the hook recorded; `--exception` and `--frame` stand in when there is none, and a PR then needs a re-verify. With Gradle they need a JDK: `JAVA_HOME`, `java` on PATH, or Android Studio's bundled JDK, which they find by themselves.
+`reproduce` and `verify` take the expected failure from the event the hook recorded; `--exception` and `--frame` stand in when there is none, and a PR then needs a re-verify. With Gradle they need a JDK: `JAVA_HOME`, `java` on PATH, or Android Studio's bundled JDK, which they find by themselves. With an Xcode project they need Xcode (selected, or at `/Applications/Xcode.app`) and an iPhone simulator; they pick the shared scheme and the simulator themselves, and `FIXCRASH_XCODE_SCHEME` and `FIXCRASH_XCODE_DESTINATION` override them. For an iOS event they first build the crashing commit in Release to find the frames inlined into the blame frame (ADR-0002), once per commit.
 
 ## Definition of done for any change
 

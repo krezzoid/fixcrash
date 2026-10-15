@@ -52,6 +52,34 @@ test('has no expectation without a blame frame or exceptions', () => {
   assert.equal(expectationOf({ ...event, exceptions: [] }), undefined);
 });
 
+test('reads an iOS crash: Mach exception from the subtitle, blame frame with its address, no exceptions', () => {
+  const event = toCrashEvent(parseEvents(fixture('event-ios.yaml'))[0]!)!;
+
+  assert.equal(event.platform, 'IOS');
+  assert.equal(event.machException, 'EXC_BREAKPOINT');
+  assert.deepEqual(event.version, { display: '3.1', build: '310' });
+  assert.equal(event.revision, undefined);
+  assert.deepEqual(event.blameFrame, { symbol: 'ProfileViewController.showProfile()', file: 'Strings.swift', line: 7 });
+  assert.deepEqual(event.site, { image: 'App', address: 29516, simulator: true });
+  assert.deepEqual(event.exceptions, []);
+  assert.deepEqual(expectationOf(event), {
+    exception: 'EXC_BREAKPOINT', frame: 'ProfileViewController.showProfile()', site: { image: 'App', address: 29516, simulator: true },
+  });
+});
+
+test('reads the Mach exception and the address on Apple platforms only', () => {
+  const ios = toCrashEvent(parseEvents(fixture('event-ios.yaml'))[0]!)!;
+  const android = toCrashEvent(parseEvents(fixture('event-ios.yaml').replace('    IOS\n', '    ANDROID\n'))[0]!)!;
+
+  assert.equal(android.machException, undefined);
+  assert.equal(android.site, undefined);
+  assert.equal(expectationOf(android), undefined);
+  assert.deepEqual(expectationOf({ ...ios, blameFrame: { symbol: 'A.b()' }, site: undefined }), { exception: 'EXC_BREAKPOINT', frame: 'A.b()' });
+  const device = toCrashEvent(parseEvents(fixture('event-ios.yaml').replace('iOS Simulator (iPhone)', 'iPhone18,1'))[0]!)!;
+  assert.equal(device.site?.simulator, false);
+  assert.equal(expectationOf({ ...ios, machException: undefined }), undefined);
+});
+
 test('parses multi-line exception messages', () => {
   const [t] = parseEventExceptions('java.lang.IllegalStateException: first line\nsecond line\nat com.example.A.b (A.kt:1)');
 

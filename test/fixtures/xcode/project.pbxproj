@@ -1,0 +1,67 @@
+// !$*UTF8*$!
+{
+	archiveVersion = 1;
+	classes = {
+	};
+	objectVersion = 77;
+	objects = {
+
+/* Begin PBXFileSystemSynchronizedRootGroup section */
+		AA0000000000000000000201 /* App */ = {
+			isa = PBXFileSystemSynchronizedRootGroup;
+			path = App;
+			sourceTree = "<group>";
+		};
+		AA0000000000000000000202 /* AppTests */ = {
+			isa = PBXFileSystemSynchronizedRootGroup;
+			path = AppTests;
+			sourceTree = "<group>";
+		};
+		AA0000000000000000000203 /* AppUITests */ = {
+			isa = PBXFileSystemSynchronizedRootGroup;
+			path = AppUITests;
+			sourceTree = "<group>";
+		};
+/* End PBXFileSystemSynchronizedRootGroup section */
+
+/* Begin PBXNativeTarget section */
+		AA0000000000000000000A01 /* App */ = {
+			isa = PBXNativeTarget;
+			buildPhases = (
+			);
+			fileSystemSynchronizedGroups = (
+				AA0000000000000000000201 /* App */,
+			);
+			name = App;
+			productType = "com.apple.product-type.application";
+		};
+		AA0000000000000000000A02 /* AppTests */ = {
+			isa = PBXNativeTarget;
+			fileSystemSynchronizedGroups = (
+				AA0000000000000000000202 /* AppTests */,
+			);
+			name = AppTests;
+			productType = "com.apple.product-type.bundle.unit-test";
+		};
+		AA0000000000000000000A03 /* AppUITests */ = {
+			isa = PBXNativeTarget;
+			fileSystemSynchronizedGroups = (
+				AA0000000000000000000203 /* AppUITests */,
+			);
+			name = AppUITests;
+			productType = "com.apple.product-type.bundle.ui-testing";
+		};
+/* End PBXNativeTarget section */
+
+/* Begin PBXShellScriptBuildPhase section */
+		AA0000000000000000000304 /* Script */ = {
+			isa = PBXShellScriptBuildPhase;
+			inputPaths = (
+				"$(TARGET_BUILD_DIR)/$(EXECUTABLE_PATH)",
+			);
+			shellScript = "if [ \"$CONFIGURATION\" = \"Release\" ]; then\n  echo \"release\"\nfi\n";
+		};
+/* End PBXShellScriptBuildPhase section */
+	};
+	rootObject = AA0000000000000000000001 /* Project object */;
+}

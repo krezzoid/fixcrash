@@ -1,0 +1,82 @@
+{"app_name": "App", "timestamp": "2026-01-02 10:00:00.00 +0100", "app_version": "1.0", "slice_uuid": "00000000-0000-0000-0000-00000000000c", "build_version": "1", "bundleID": "com.example.app", "bug_type": "309", "name": "App"}
+{
+  "exception": {
+    "codes": "0x0000000000000001, 0x0000000100000000",
+    "type": "EXC_BREAKPOINT",
+    "signal": "SIGTRAP"
+  },
+  "termination": {
+    "namespace": "SIGNAL",
+    "indicator": "Trace/BPT trap: 5"
+  },
+  "faultingThread": 0,
+  "threads": [
+    {
+      "triggered": true,
+      "queue": "com.apple.main-thread",
+      "frames": [
+        {
+          "imageIndex": 0,
+          "imageOffset": 100,
+          "symbol": "closure #1 in closure #1 in _assertionFailure(_:_:file:line:flags:)"
+        },
+        {
+          "imageIndex": 0,
+          "imageOffset": 200,
+          "symbol": "_assertionFailure(_:_:file:line:flags:)"
+        },
+        {
+          "imageIndex": 1,
+          "imageOffset": 300,
+          "symbol": "ProfileParser.parse(_:)",
+          "sourceFile": "ProfileParser.swift",
+          "sourceLine": 10
+        },
+        {
+          "imageIndex": 2,
+          "imageOffset": 400,
+          "symbol": "ProfileParserTests.testParsesProfileWithoutAvatar()",
+          "sourceFile": "ProfileParserTests.swift",
+          "sourceLine": 12
+        },
+        {
+          "imageIndex": 2,
+          "imageOffset": 500,
+          "symbol": "@objc ProfileParserTests.testParsesProfileWithoutAvatar()",
+          "sourceFile": "/<compiler-generated>"
+        },
+        {
+          "imageIndex": 3,
+          "imageOffset": 600
+        }
+      ]
+    },
+    {
+      "frames": [
+        {
+          "imageIndex": 0,
+          "imageOffset": 700,
+          "symbol": "other"
+        }
+      ]
+    }
+  ],
+  "usedImages": [
+    {
+      "name": "libswiftCore.dylib",
+      "arch": "arm64"
+    },
+    {
+      "name": "App.debug.dylib",
+      "arch": "arm64"
+    },
+    {
+      "name": "AppTests",
+      "arch": "arm64"
+    },
+    {
+      "name": "XCTestCore",
+      "arch": "arm64"
+    }
+  ]
+}

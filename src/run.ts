@@ -1,22 +1,32 @@
 // The engine under `verify` and `reproduce`: runs a test command at a commit
-// in fixcrash's own worktree (.git/fixcrash/worktree), reads the JUnit
-// reports, and checks failures against the crash.
+// in fixcrash's own worktree (.git/fixcrash/worktree), reads the test results
+// (JUnit reports, Xcode result bundles), and checks failures against the crash.
 
 import { spawnSync } from 'node:child_process';
 import {
-  closeSync, copyFileSync, existsSync, mkdirSync, openSync, readFileSync, rmSync, unlinkSync, writeFileSync,
+  closeSync, copyFileSync, existsSync, mkdirSync, openSync, readFileSync, rmSync, writeFileSync,
 } from 'node:fs';
-import { dirname, join, resolve as resolvePath } from 'node:path';
+import { basename, dirname, join, resolve as resolvePath } from 'node:path';
 import * as g from './git.ts';
-import { parseJUnit, selectCases, type TestCase } from './junit.ts';
+import { selectCases, type TestCase, type TestFailure } from './junit.ts';
 import { stateDir, type RunRecord, type TargetResult } from './receipt.ts';
-import { detectRunner, findFiles, type Runner } from './runner.ts';
-import { formatFrame, matchFailure, parseJvmStack, testFrameDetector, type Expected } from './stack.ts';
+import { findFiles, gradle, type RunDirs, type Runner, type Step } from './runner.ts';
+import {
+  formatFrame, matchFailure, parseJvmStack, sameSymbol, testFrameDetector, type Expected, type Frame, type Throwable,
+} from './stack.ts';
+import { findXcodeContainer, xcodebuild } from './xcode.ts';
 
 /** A problem with the inputs or the environment, not with the code under test: exit code 2. */
 export class VerifyError extends Error {}
 
 export const short = (sha: string) => sha.slice(0, 12);
+
+/** The runner for a project directory, or undefined when no supported build tool is found. */
+export function detectRunner(projectDir: string): Runner | undefined {
+  if (existsSync(join(projectDir, 'gradlew'))) return gradle;
+  if (findXcodeContainer(projectDir)) return xcodebuild(projectDir);
+  return undefined;
+}
 
 /** The repository, the build tool's directory in it, and how to run its tests. */
 export interface Project {
@@ -51,7 +61,7 @@ export function openProject(cwd: string, projectDirOption: string | undefined, r
   }
   const runner = runnerOption ?? detectRunner(join(root, projectDir));
   if (!runner) {
-    throw new VerifyError(`no supported build tool in ${projectDir || '.'} (looked for: gradlew). Pass --project-dir if the app is in a subdirectory`);
+    throw new VerifyError(`no supported build tool in ${projectDir || '.'} (looked for: gradlew, *.xcworkspace, *.xcodeproj). Pass --project-dir if the app is in a subdirectory`);
   }
   const env = { ...process.env };
   const extra = runner.environment(env);
@@ -139,15 +149,20 @@ export function tail(path: string, lines: number): string {
 }
 
 interface CommandResult {
+  dirs: RunDirs;
+  /** The last command that ran. */
+  command: string[];
   exitCode: number | null;
   durationMs: number;
   log: string;
   cases: TestCase[];
 }
 
-/** Checks out `commit` in the worktree, writes the overlay if asked, runs `command`, reads the reports. */
-function runAt(ctx: RunContext, role: RunRecord['role'], commit: string, withOverlay: boolean, command: string[]): CommandResult {
-  const { root, projectDir, runner, env } = ctx.project;
+/** Checks out `commit` in the worktree, writes the overlay if asked, runs the steps, reads the results. */
+function runAt(
+  ctx: RunContext, label: string, commit: string, withOverlay: boolean, stepsFor: (dirs: RunDirs) => Step[],
+): CommandResult {
+  const { root, common, projectDir, runner, env } = ctx.project;
   g.prepareWorktree(root, ctx.worktree, commit);
   const project = join(ctx.worktree, projectDir);
   if (!existsSync(project)) throw new VerifyError(`${projectDir || '.'} does not exist at ${short(commit)}`);
@@ -160,7 +175,7 @@ function runAt(ctx: RunContext, role: RunRecord['role'], commit: string, withOve
     }
   }
 
-  // Untracked config the build needs: local.properties, google-services.json.
+  // Untracked config the build needs: local.properties, google-services.json, GoogleService-Info.plist.
   const tracked = new Set(g.trackedFiles(ctx.worktree));
   const checkoutProject = join(root, projectDir);
   for (const f of findFiles(checkoutProject, new Set(runner.localFiles))) {
@@ -170,42 +185,114 @@ function runAt(ctx: RunContext, role: RunRecord['role'], commit: string, withOve
     copyFileSync(join(checkoutProject, f), join(ctx.worktree, repoPath));
   }
 
-  // Stale reports from an earlier run would be read as this run's results.
-  for (const r of runner.reportFiles(project)) unlinkSync(r);
+  runner.clean(project);
+  const dirs: RunDirs = {
+    out: join(ctx.logs, `${ctx.logPrefix}-${label}`),
+    cache: join(stateDir(common), 'cache', runner.name),
+  };
+  rmSync(dirs.out, { recursive: true, force: true });
+  mkdirSync(dirs.out, { recursive: true });
+  mkdirSync(dirs.cache, { recursive: true });
+  let steps: Step[];
+  try {
+    steps = stepsFor(dirs);
+  } catch (e) {
+    throw new VerifyError((e as Error).message);
+  }
 
-  const log = join(ctx.logs, `${ctx.logPrefix}-${role}.log`);
-  mkdirSync(ctx.logs, { recursive: true });
+  const log = join(ctx.logs, `${ctx.logPrefix}-${label}.log`);
   const fd = openSync(log, 'w');
   const started = Date.now();
-  let exitCode: number | null;
+  let exitCode: number | null = null;
+  let command: string[] = [];
   try {
-    writeFileSync(fd, `$ ${command.join(' ')}\n# at ${commit}, in ${project}\n\n`);
-    const r = spawnSync(command[0]!, command.slice(1), {
-      cwd: project,
-      env,
-      stdio: ['ignore', fd, fd],
-      timeout: ctx.timeoutMs,
-    });
-    if (r.error && (r.error as NodeJS.ErrnoException).code !== 'ETIMEDOUT') {
-      throw new VerifyError(`cannot run ${command[0]}: ${r.error.message}`);
+    writeFileSync(fd, `# at ${commit}, in ${project}\n`);
+    const exec = (argv: string[], timeout: number): boolean => {
+      command = argv;
+      writeFileSync(fd, `\n$ ${argv.join(' ')}\n\n`);
+      const r = spawnSync(argv[0]!, argv.slice(1), { cwd: project, env, stdio: ['ignore', fd, fd], timeout });
+      const timedOut = (r.error as NodeJS.ErrnoException | undefined)?.code === 'ETIMEDOUT';
+      if (r.error && !timedOut) throw new VerifyError(`cannot run ${argv[0]}: ${r.error.message}`);
+      exitCode = r.status;
+      if (r.signal) writeFileSync(fd, `\n# killed by ${r.signal}${timedOut ? ` (timeout, ${Math.round(timeout / 1000)} s)` : ''}\n`);
+      return timedOut;
+    };
+    for (const [i, step] of steps.entries()) {
+      const timeout = step.timeoutMs ?? ctx.timeoutMs;
+      if (exec(step.command, timeout) && step.retry) exec(step.retry, timeout);
+      if (exitCode !== 0 && i < steps.length - 1) break;
     }
-    exitCode = r.status;
-    if (r.signal) writeFileSync(fd, `\n# killed by ${r.signal}${r.error ? ' (timeout)' : ''}\n`);
   } finally {
     closeSync(fd);
   }
   const durationMs = Date.now() - started;
 
-  const cases: TestCase[] = [];
-  for (const r of runner.reportFiles(project)) {
-    try {
-      cases.push(...parseJUnit(readFileSync(r, 'utf8')));
-    } catch (e) {
-      throw new VerifyError(`cannot read test report ${r}: ${(e as Error).message}`);
-    }
+  let cases: TestCase[];
+  try {
+    cases = runner.results(project, dirs);
+  } catch (e) {
+    throw new VerifyError((e as Error).message);
   }
-  return { exitCode, durationMs, log, cases };
+  return { dirs, command, exitCode, durationMs, log, cases };
 }
+
+/** What `resolveSite` decided, for the log and the receipt. */
+export interface SiteResolution {
+  expected: Expected;
+  /** The frames at the crash site in the release build, innermost first, when they were read. */
+  chain?: string[];
+  /** One line on what was found, or why the blame frame stands. */
+  note: string;
+}
+
+/**
+ * ADR-0002. On Apple platforms the blame frame is the caller of the function
+ * that crashed when the optimizer inlined that function. Builds the crashing
+ * commit as it ships, reads the frames at the crash site from the build's
+ * debug symbols, and expects the innermost frame in the app's own sources, if
+ * the frames end in the blame frame. Otherwise the blame frame stands.
+ * Cached per commit and site.
+ */
+export function resolveSite(ctx: RunContext, base: string): SiteResolution {
+  const { runner, common, projectDir } = ctx.project;
+  const site = ctx.expected.site;
+  if (!site || !runner.releaseSteps || !runner.inlineFrames) return { expected: ctx.expected, note: '' };
+  const cache = join(stateDir(common), 'cache', runner.name, 'sites', `${base}-${site.image}-${site.address}.json`);
+  if (existsSync(cache)) return JSON.parse(readFileSync(cache, 'utf8')) as SiteResolution;
+  const stands = (why: string): SiteResolution => ({ expected: ctx.expected, note: `${why}: the blame frame ${ctx.expected.frame} stands` });
+  const save = (r: SiteResolution): SiteResolution => {
+    mkdirSync(dirname(cache), { recursive: true });
+    writeFileSync(cache, `${JSON.stringify(r, null, 2)}\n`);
+    return r;
+  };
+
+  const r = runAt(ctx, 'release', base, false, (dirs) => runner.releaseSteps!(dirs, site));
+  if (r.exitCode !== 0) return stands(`the release build of ${short(base)} failed (${r.log})`);
+  let frames: Frame[];
+  try {
+    frames = runner.inlineFrames(r.dirs, site);
+  } catch (e) {
+    return stands((e as Error).message);
+  }
+  const chain = frames.map(formatFrame);
+  const outer = frames.at(-1);
+  if (!outer || !sameSymbol(outer.symbol, ctx.expected.frame)) {
+    return save({ ...stands(`at the crash site, the release build has ${chain.join(' < ') || 'no frames'}, not the shipped code`), chain });
+  }
+  const project = join(ctx.worktree, projectDir);
+  const ours = (f: Frame) => f.file !== undefined && findFiles(project, new Set([basename(f.file)])).length > 0;
+  const crashed = frames.find(ours) ?? outer;
+  const failure = frames.find((f) => f.symbol.startsWith('Swift runtime failure: '))?.symbol;
+  const where = crashed === outer ? `in ${formatFrame(outer)} itself` : `in ${formatFrame(crashed)}, inlined into ${ctx.expected.frame}`;
+  return save({
+    expected: { ...ctx.expected, frame: crashed.symbol },
+    chain,
+    note: `the crash is ${where}${failure ? ` (${failure})` : ''}`,
+  });
+}
+
+/** The failure as a chain of throwables: parsed by the runner (crash logs), or a JVM stack trace. */
+const chainOf = (f: TestFailure): Throwable[] => f.chain ?? parseJvmStack(f.text);
 
 function counts(cases: TestCase[]): RunRecord['tests'] {
   return {
@@ -224,11 +311,10 @@ function notRunReason(ctx: RunContext, r: CommandResult, where: string): string 
 /** The test must fail at `commit`, every matching case, the way the crash did. */
 export function checkFails(ctx: RunContext, role: 'base' | 'from', commit: string): RunRecord {
   const { runner, toProject } = ctx.project;
-  const command = runner.targetCommand(ctx.test, ctx.targetFile);
-  const r = runAt(ctx, role, commit, true, command);
+  const r = runAt(ctx, role, commit, true, (dirs) => runner.targetSteps(ctx.test, ctx.targetFile, dirs));
   const where = `at ${short(commit)}`;
   const record: RunRecord = {
-    role, commit, command, exitCode: r.exitCode, durationMs: r.durationMs, log: r.log,
+    role, commit, command: r.command, exitCode: r.exitCode, durationMs: r.durationMs, log: r.log,
     tests: counts(r.cases), target: [], ok: false, reason: '',
   };
   const selected = selectCases(r.cases, ctx.test);
@@ -244,7 +330,9 @@ export function checkFails(ctx: RunContext, role: 'base' | 'from', commit: strin
       return p !== undefined && runner.isTestFile(p);
     })
     .concat(ctx.overlay.map((f) => f.path));
-  const isTestFrame = testFrameDetector(testPaths);
+  const byFile = testFrameDetector(testPaths);
+  const images = runner.testImages?.(testPaths.map((p) => toProject(p)).filter((p): p is string => p !== undefined));
+  const isTestFrame = (f: Frame) => (f.image !== undefined && images ? images.has(f.image) : byFile(f));
 
   for (const c of selected) {
     const name = `${c.classname}.${c.name}`;
@@ -253,7 +341,7 @@ export function checkFails(ctx: RunContext, role: 'base' | 'from', commit: strin
       record.reason = `${name} ${c.status} ${where}: it must fail there, as the crash did`;
       return record;
     }
-    const chain = parseJvmStack(c.failure.text);
+    const chain = chainOf(c.failure);
     const m = matchFailure(chain, ctx.expected, isTestFrame);
     if (!m.ok) {
       const top = chain[0];
@@ -282,11 +370,10 @@ export function checkFails(ctx: RunContext, role: 'base' | 'from', commit: strin
 /** The full suite passes at `commit`, the new test with it. */
 export function checkPasses(ctx: RunContext, commit: string): RunRecord {
   const { runner } = ctx.project;
-  const command = runner.suiteCommand();
-  const r = runAt(ctx, 'head', commit, false, command);
+  const r = runAt(ctx, 'head', commit, false, (dirs) => runner.suiteSteps(dirs));
   const tests = counts(r.cases);
   const record: RunRecord = {
-    role: 'head', commit, command, exitCode: r.exitCode, durationMs: r.durationMs, log: r.log,
+    role: 'head', commit, command: r.command, exitCode: r.exitCode, durationMs: r.durationMs, log: r.log,
     tests, target: [], ok: false, reason: '',
   };
   const selected = selectCases(r.cases, ctx.test);
@@ -297,7 +384,7 @@ export function checkPasses(ctx: RunContext, commit: string): RunRecord {
     record.reason = notRunReason(ctx, r, 'with the fix');
   } else if (selected.some((c) => c.status !== 'passed')) {
     const bad = selected.find((c) => c.status !== 'passed')!;
-    const detail = bad.failure ? `: ${parseJvmStack(bad.failure.text)[0]?.type ?? bad.failure.type}` : '';
+    const detail = bad.failure ? `: ${chainOf(bad.failure)[0]?.type ?? bad.failure.type}` : '';
     record.reason = `${bad.classname}.${bad.name} ${bad.status} with the fix${detail}`;
   } else if (failed.length > 0) {
     const names = failed.slice(0, 5).map((c) => `${c.classname}.${c.name}`).join(', ');

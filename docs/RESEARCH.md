@@ -342,6 +342,15 @@ These end in an honest report. The plugin's value depends on the share of the fi
   - Two of five crashing runs hung: one sequential run after the restart, in "Blocking finish to clean up test session" (stopped after 10 min); one parallel run before testing started (stopped by a 150 s guard). The same commands went through on other tries. `run.ts` has one timeout, 30 min, for every command.
 - **A rebuild of the crashing commit:** the testbed rebuilt in Release from a copy at another path had other UUIDs (paths end up in the binary), the same `__text` size, and one different instruction in 545,000 lines of disassembly, a string offset. `atos -i` against the copy's dSYM gave the same inline chains for all three crashes' addresses.
 
+**2026-10-15: fixcrash on a copy of the iOS testbed (step 5.5)** (`testbed/copy-ios.sh`, events recorded from the step 5.3 issues as the hook would; Xcode 27.0, iOS 27.0 simulator)
+
+- **The copy** took 31 s, its Release build included: Swift packages came from SPM's cache.
+- **parser:** `reproduce` REPRODUCED on its first attempt in 89 s: a Release build of `v1.0` in fixcrash's cache, `atos` at the event's address (`crash site: the crash is in ProfileParser.parse(_:)(ProfileParser.swift:10), inlined into MainViewController.openProfile() (Swift runtime failure: Unexpectedly found nil while unwrapping an Optional value)`), then the Debug build and the test, 60 s. `verify` VERIFIED: base 30 s (the crash site cached), fix parent 334 s (a hang, see below), suite with the fix 21 s. `pr-body` built the description from the receipt.
+- **paging:** REPRODUCED at `FeedPager.page(_:)`, inlined into `MainViewController.loadMore()` (`Array index is out of range`), 169 s with a hang.
+- **lifecycle:** the crash site is the expiration handler's closure itself. A test that starts a sync and waits for it passes at `v1.0`: NOT REPRODUCED in 36 s. A test that swizzles `beginBackgroundTask(withName:expirationHandler:)` was refused before any build.
+- **Hangs:** in two of the four runs where the test crashed, `xcodebuild test-without-building` hung after "Restarting after unexpected exit, crash, or test timeout"; never in a run where it didn't. Each time the timeout (5, then 2 minutes) killed it and the retry went through.
+- **The Release build runs the app's build phases.** The testbed's uploaded the worktree build's dSYM to Crashlytics ("Successfully uploaded Crashlytics build event and symbols"), a binary with yet another UUID.
+
 **2026-10-07: React Native Firebase.** JS errors go through `recordError` (also the global handler). The JS stack is converted to a mock native exception. Line numbers are relative to the bundle after transpilation and minification, so source maps have to be kept and applied by the developer.
 
 ## 8. Risks

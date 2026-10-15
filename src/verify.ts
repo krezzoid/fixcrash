@@ -13,7 +13,7 @@ import { resolveExpectation } from './record.ts';
 import { RECEIPT_SCHEMA, receiptPath, writeReceipt, type Receipt, type RunRecord } from './receipt.ts';
 import type { Runner } from './runner.ts';
 import {
-  checkFails, checkPasses, lock, openProject, reportRun, resolveRef, runContext, short, VerifyError,
+  checkFails, checkPasses, lock, openProject, reportRun, resolveRef, resolveSite, runContext, short, VerifyError,
 } from './run.ts';
 import { findShortcuts, shortcutReason } from './shortcut.ts';
 import type { Expected } from './stack.ts';
@@ -128,6 +128,13 @@ export function verify(opts: VerifyOptions): VerifyResult {
     const shortcuts = testFiles.flatMap((p) => findShortcuts(p, g.showFile(root, head, p).toString('utf8'), g.addedLines(root, from, head, p)));
     if (shortcuts.length > 0) return done(shortcutReason(shortcuts));
 
+    const site = resolveSite(ctx, base);
+    if (site.note) {
+      log(`crash site: ${site.note}`);
+      ctx.expected = site.expected;
+      log(`expect ${ctx.expected.exception} at ${ctx.expected.frame}`);
+    }
+
     const b = checkFails(ctx, 'base', base);
     runs.push(b);
     reportRun(log, 'base (crashing version)', b);
@@ -156,8 +163,9 @@ export function verify(opts: VerifyOptions): VerifyResult {
       head, base, from,
       issue: opts.issue,
       test: opts.test,
-      expected,
+      expected: ctx.expected,
       expectedSource,
+      ...(site.note ? { crashSite: site.chain ? { chain: site.chain, note: site.note } : { note: site.note } } : {}),
       projectDir: project.projectDir,
       runner: runner.name,
       testFiles,

@@ -1,0 +1,58 @@
+- name: |
+    projects/100000000001/apps/1:100000000001:ios:00000000000000bb/events/0000000000000000000000000000000B_2000000000000000001
+  platform: |
+    IOS
+  bundleOrPackage: |
+    com.example.app
+  eventId: |
+    '2000000000000000001'
+  eventTime: |
+    '2026-01-02T10:00:00Z'
+  issue: |
+    id: 0000000000000000000000000000beef
+    title: '[App] ProfileViewController.swift - ProfileViewController.showProfile()'
+    subtitle: EXC_BREAKPOINT
+    errorType: FATAL
+    sampleEvent: projects/100000000001/apps/1:100000000001:ios:00000000000000bb/events/0000000000000000000000000000000B_2000000000000000001
+  device: |
+    manufacturer: Apple
+    model: iOS Simulator (iPhone)
+    architecture: ARM64
+    displayName: Apple (iOS Simulator (iPhone))
+    formFactor: PHONE
+  operatingSystem: |
+    displayVersion: 27.0.0
+    os: IOS
+    displayName: iOS (27.0.0)
+  version: |
+    displayVersion: '3.1'
+    buildVersion: '310'
+    displayName: 3.1 (310)
+  user: |
+    id: user-0042
+  customKeys: |
+    last_action: open_profile
+  installationUuid: |
+    00000000000000000000000000000000000000000000000000000000000000BB
+  logs: '[2026-01-02T09:59:59.000Z] action: open_profile'
+  blameFrame: |
+    line: '7'
+    file: Strings.swift
+    symbol: ProfileViewController.showProfile()
+    offset: '7'
+    address: '29516'
+    library: App
+    owner: DEVELOPER
+    blamed: true
+  threads: |-
+    Thread:  (crashed)
+    at ProfileViewController.showProfile() (Strings.swift:7)
+    at ProfileViewController.viewDidAppear(_:) (ProfileViewController.swift:40)
+    at @objc ProfileViewController.viewDidAppear(_:) (<compiler-generated>:44)
+    at -[UIViewController _setViewAppearState:isAnimating:]
+    at
+    ... frames omitted ...
+  processState: |
+    FOREGROUND
+  issueVariant: |
+    id: 00000000000000000000000000000003

@@ -3,10 +3,12 @@
 // crash's top app frame is on the stack.
 
 export interface Frame {
-  /** `package.Class.method`, without class-loader or module prefixes. */
+  /** `package.Class.method`, without class-loader or module prefixes; Swift: `Type.method(_:)`. */
   symbol: string;
   file?: string;
   line?: number;
+  /** Apple crash logs: the binary the frame's code is in, e.g. `AppTests`. */
+  image?: string;
 }
 
 export interface Throwable {
@@ -22,6 +24,18 @@ export interface Expected {
   exception: string;
   /** Blame frame symbol, e.g. `com.example.ProfileParser.parse`. */
   frame: string;
+  /** Apple platforms: where the crash is in the shipped binary (ADR-0002). */
+  site?: CrashSite;
+}
+
+/** Apple platforms: a crash's place in the shipped binary, to recover the frames inlined into the blame frame. */
+export interface CrashSite {
+  /** The binary, e.g. `App`: the event's `blameFrame.library`. */
+  image: string;
+  /** Offset of the crash in it. */
+  address: number;
+  /** Built for the simulator rather than a device. */
+  simulator: boolean;
 }
 
 export type MatchResult =
@@ -141,6 +155,12 @@ export function formatFrame(f: Frame): string {
   return f.line === undefined ? `${f.symbol}(${f.file})` : `${f.symbol}(${f.file}:${f.line})`;
 }
 
+/** Optimized Swift code names a generic specialization `specialized <symbol>`; a Debug build doesn't. */
+export function sameSymbol(a: string, b: string): boolean {
+  const plain = (s: string) => s.replace(/^specialized /, '');
+  return plain(a) === plain(b);
+}
+
 /**
  * Checks that a failure is the crash: some throwable in the cause chain has the
  * expected type, the expected frame is on its stack, and no frame above it is
@@ -160,7 +180,7 @@ export function matchFailure(
   }
   let reason = '';
   for (const t of sameType) {
-    const i = t.frames.findIndex((f) => f.symbol === expected.frame);
+    const i = t.frames.findIndex((f) => sameSymbol(f.symbol, expected.frame));
     if (i < 0) {
       reason = `${expected.exception} does not pass through ${expected.frame}`;
       continue;

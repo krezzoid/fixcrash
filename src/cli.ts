@@ -2,15 +2,14 @@
 // Exit codes: 0 done, 1 not verified / not reproduced / not found,
 // 2 bad input or environment, 3 reproduce budget spent.
 
-import { readFileSync } from 'node:fs';
-import { join, resolve } from 'node:path';
+import { resolve } from 'node:path';
 import { parseArgs } from 'node:util';
+import { appIdsIn } from './appid.ts';
 import { commonDir, GitError, repoRoot, resolveCommit } from './git.ts';
 import { prBody } from './prbody.ts';
 import { checkReceipt } from './receipt.ts';
 import { readRecord } from './record.ts';
 import { reproduce } from './reproduce.ts';
-import { findFiles } from './runner.ts';
 import type { Expected } from './stack.ts';
 import { verify, VerifyError } from './verify.ts';
 import { commitForVersion, DEFAULT_TAG_PATTERNS, VersionError } from './version.ts';
@@ -41,7 +40,7 @@ const USAGE = `usage:
   fixcrash event <issue>          What the hook recorded for an issue: expected failures, versions.
   fixcrash receipt [--commit <ref>]   The receipt for HEAD (or --commit) if valid; exit 1 if not.
   fixcrash pr-body [--commit <ref>]   A pull request description from that receipt.
-  fixcrash app-id [--project-dir <dir>]   Firebase app ids from google-services.json files.`;
+  fixcrash app-id [--project-dir <dir>]   Firebase app ids from google-services.json and GoogleService-Info.plist files.`;
 
 class UsageError extends Error {}
 
@@ -179,26 +178,15 @@ function cmdEvent(args: string[]): number {
   return 0;
 }
 
-interface GoogleServices {
-  client?: { client_info?: { mobilesdk_app_id?: string; android_client_info?: { package_name?: string } } }[];
-}
-
 function cmdAppId(args: string[]): number {
   const { values } = parseArgs({ args, options: { 'project-dir': { type: 'string' } }, strict: true });
   const dir = values['project-dir'] ? resolve(values['project-dir']) : repoRoot(process.cwd());
-  let found = 0;
-  for (const f of findFiles(dir, new Set(['google-services.json']))) {
-    // Only the app id and package name are printed: the file also holds API keys.
-    const config = JSON.parse(readFileSync(join(dir, f), 'utf8')) as GoogleServices;
-    for (const c of config.client ?? []) {
-      const id = c.client_info?.mobilesdk_app_id;
-      if (!id) continue;
-      console.log(`${id}\t${c.client_info?.android_client_info?.package_name ?? ''}\t${f}`);
-      found++;
-    }
+  const found = appIdsIn(dir);
+  for (const a of found) console.log(`${a.id}\t${a.app}\t${a.file}`);
+  if (found.length === 0) {
+    console.error('fixcrash: no google-services.json or GoogleService-Info.plist with an app id here: pass the app id, or set it in the plugin options');
   }
-  if (found === 0) console.error('fixcrash: no google-services.json with an app id here: pass the app id, or set it in the plugin options');
-  return found > 0 ? 0 : 1;
+  return found.length > 0 ? 0 : 1;
 }
 
 export function main(argv: string[]): number {
