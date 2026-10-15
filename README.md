@@ -93,8 +93,8 @@ Usually it can't, and fixcrash ends with a report:
 | Platform | Reproduces with | State |
 |----------|-----------------|-------|
 | Android (Kotlin) | JVM unit tests, Robolectric when Android classes are involved | first |
-| React Native | Jest, plus symbolication of JS stacks from source maps for the crashing commit | second |
-| iOS (Swift) | `swift test`, `xcodebuild test -only-testing` | third |
+| iOS (Swift) | `xcodebuild test -only-testing`, `swift test` | second |
+| React Native | Jest, plus symbolication of JS stacks from source maps for the crashing commit | third |
 
 ## Safety rules
 
@@ -139,8 +139,8 @@ In Claude Code:
 | 2 | `fixcrash verify`: fail-before, pass-after, suite-green, receipt | ✅ |
 | 3 | Plugin: skills `triage` and `fix`, `reproducer` subagent, PR guard hook | ✅ |
 | 4 | Eval on the testbed: [results](docs/EVAL.md) | ✅ |
-| 5 | React Native | next |
-| 6 | iOS (Swift) | |
+| 5 | iOS (Swift) | next |
+| 6 | React Native | |
 | 7 | Publish | |
 
 Details: [docs/PLAN.md](docs/PLAN.md). Eval results: [docs/EVAL.md](docs/EVAL.md). Landscape, data, risks and open questions: [docs/RESEARCH.md](docs/RESEARCH.md).

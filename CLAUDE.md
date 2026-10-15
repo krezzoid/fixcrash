@@ -11,7 +11,7 @@ If it cannot reproduce the crash, it says so, lists its hypotheses and what data
 
 Naming: the repository is `fixcrash`. The plugin name is `fixcrash`, so its commands are `/fixcrash:<skill>`, e.g. `/fixcrash:fix <issue>`.
 
-Platforms, in order: Android (Kotlin), then React Native, then iOS (Swift).
+Platforms, in order: Android (Kotlin), then iOS (Swift), then React Native.
 
 ## Read first
 

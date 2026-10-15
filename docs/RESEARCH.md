@@ -75,8 +75,8 @@ Deep app frames can be cut. If that matters, the plugin may need the full event 
 | Platform | Reproduce with | Loop | Notes |
 |----------|----------------|------|-------|
 | Android (Kotlin) — **first** | JVM unit test: `./gradlew :<module>:testDebugUnitTest --tests <Class>`; Robolectric when Android framework classes are involved | seconds to a minute, no emulator | Crashlytics is the default crash tool on Android. Stacks are deobfuscated when the R8 mapping is uploaded. `buildStamp` may carry the git commit (hypothesis, §9) |
-| React Native — second | Jest (in the RN template) | seconds | JS errors only. Native crashes in an RN app go down the Android/iOS paths. Symbolication: build the bundle and source map for the crashing commit (`react-native bundle --sourcemap-output`, Hermes source-map composition), then `metro-symbolicate`. Cache in `${CLAUDE_PLUGIN_DATA}` |
-| iOS (Swift) — third | `swift test` for logic in SPM packages; otherwise `xcodebuild test -scheme <s> -destination 'platform=iOS Simulator,…' -only-testing:<id>` (XCTest or Swift Testing) | minutes | Needs macOS and Xcode. No dSYM upload means no symbolicated stacks. Slow builds make the attempt budget tighter |
+| iOS (Swift) — second | `swift test` for logic in SPM packages; otherwise `xcodebuild test -scheme <s> -destination 'platform=iOS Simulator,…' -only-testing:<id>` (XCTest or Swift Testing) | minutes | Needs macOS and Xcode. No dSYM upload means no symbolicated stacks. Slow builds make the attempt budget tighter |
+| React Native — third | Jest (in the RN template) | seconds | JS errors only. Native crashes in an RN app go down the Android/iOS paths. Symbolication: build the bundle and source map for the crashing commit (`react-native bundle --sourcemap-output`, Hermes source-map composition), then `metro-symbolicate`. Cache in `${CLAUDE_PLUGIN_DATA}` |
 
 **Reproducible by a unit test, usually:**
 
