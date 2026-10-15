@@ -365,6 +365,19 @@ These end in an honest report. The plugin's value depends on the share of the fi
 - **action** (a force unwrap in a toolbar button's closure): `closure #1 in closure #2 in ArchiveView.body.getter (ArchiveView.swift:26)`, then `MainActor.assumeIsolated` and `ButtonAction.callAsFunction()` in `SwiftUI`.
 - `simctl launch <device> <bundle id> -screen <name>` reaches the app's `App` struct through `UserDefaults`, as in the UIKit app; a `NavigationStack(path:)` built from it opens the screen. `simctl` can't tap; Claude Code's iOS Simulator tool tapped the toolbar button at its point coordinates.
 
+**2026-10-15: SwiftUI events through Firebase MCP (step 5.7.2)** (the same build; Crashlytics SDK 13.0.0, firebase-tools 15.32.1)
+
+- **The dSYM again.** The build phase's `upload-symbols --build-phase` printed "Successfully uploaded Crashlytics build event and symbols" a few minutes after the Firebase app was created, before the first crashes. The console still showed "This app has 3 unprocessed crashes. Upload 1 dSYM file". `upload-symbols -gsp <plist> -p ios <dSYM>` by hand submitted the same UUIDs and the message went away. Those three crashes never reached `topIssues`; the same three triggered again after it were there about 3 minutes after the crash, received together 30 to 60 s after them. Why the first upload didn't count is not known (the app was new; the build phase's output wasn't kept).
+- **Issues and blame frames.** One issue per scenario, subtitle `EXC_BREAKPOINT`:
+  - render: `[TestbedSwiftUI] TagsView.swift - closure #1 in closure #1 in TagsView.body.getter`. The `specialized Array` frames above it are inlined into the closure (one address in the `.ips` report), so Crashlytics drops them and blames the closure.
+  - async: `[TestbedSwiftUI] InboxModel.swift - InboxModel.load()`.
+  - action: `[TestbedSwiftUI] ArchiveView.swift - closure #1 in closure #2 in ArchiveView.body.getter`.
+  - Each blame frame's `address` is the `.ips` report's `imageOffset`; each `line` is one below the crash's line (11, 24 and 27 for 10, 23 and 26).
+- **The async caller is gone.** The event's crashed thread is `InboxModel.load()`, then `swift::runJobInEstablishedExecutorContext`, `swift_job_runImpl` and the main queue: the stack the continuation ran on. The `.task` closure that awaited `load()` is only in the `.ips` report, which adds the async callers.
+- **SwiftUI's frames are mangled** in `threads` (`$s7SwiftUI12ForEachStateC4item…`), and some name other functions than the `.ips` report does (`ContextMenuBridge…willPerformPreviewAction…` where it has `<deduplicated_symbol>`).
+- **Process state, keys, logs:** render crashed a second after launch, with `UNKNOWN_PROCESS_STATE` and no user, keys or logs. async (after a 200 ms `await`) has the user id, the custom key, the log and the breadcrumb. action has the user id only: the crash comes right after `Telemetry.track`, in the same call.
+- **ADR-0002:** `atos -i` at each address against the build's dSYM gives the `Swift runtime failure` pseudo-frame, the inlined `specialized Array` frames for render (from `<compiler-generated>`, no file), and ends in the blame frame. With no other inlined app frame, `resolveSite` keeps the blame frame for all three: the release build adds nothing, and costs a build.
+
 **2026-10-07: React Native Firebase.** JS errors go through `recordError` (also the global handler). The JS stack is converted to a mock native exception. Line numbers are relative to the bundle after transpilation and minification, so source maps have to be kept and applied by the developer.
 
 ## 8. Risks
