@@ -419,6 +419,33 @@ These end in an honest report. The plugin's value depends on the share of the fi
   - iOS builds make no map unless `SOURCEMAP_FILE` is exported in the "Bundle React Native code and images" build phase.
 - **This machine:** no CocoaPods and no Watchman. Ruby is the system's 2.6.10. Android Studio's JDK is 25.
 
+**2026-10-16: React Native testbed (step 6.2)** (`testbed/react-native`; RN 0.88.0 from `@react-native-community/cli` 20.2.0, React Native Firebase 26.4.0, Crashlytics Android SDK 20.1.0; Release builds on the API 37 emulator and the iOS 27.0 simulator; logcat and the simulator's unified log)
+
+- **Builds**
+  - The template's Gradle 9.4.1 runs on Android Studio's JDK 25. The first `assembleRelease` downloaded NDK 27.1 by itself (its license was already accepted) and took 3 minutes.
+  - `pod install` took 52 s and says that calling it directly is deprecated in React Native. React Native Firebase brings the Firebase iOS SDK in through Swift Package Manager inside the Pods project, with `use_frameworks! :linkage => :dynamic`.
+  - `pod install` adds React Native Firebase's "[RNFB] Crashlytics Configuration" build phase to the app target. With the SDK from SPM, the phase runs `upload-symbols` in the foreground with `-gsp ${PROJECT_DIR}/GoogleService-Info.plist`, the directory of the Xcode project, not the app's folder. With the config there, the Release build printed "Successfully uploaded Crashlytics symbols".
+  - With Hermes on, release bundles skip Metro's minifier. The Gradle plugin sets `minifyEnabled` to `!hermesEnabled`, and `react-native-xcode.sh` passes `--minify false`. The Hermes compiler comes from the npm package `hermes-compiler`.
+  - Android keeps the composed source map in `android/app/build/generated/sourcemaps/react/release/index.android.bundle.map`. An iOS build writes one when `SOURCEMAP_FILE` is passed to `xcodebuild` as a build setting.
+- **Three ways a JS error reaches Crashlytics**, all three seen on both platforms
+  - **An error in a timer callback** (and, by React Native's design, in a button's handler) goes to `ErrorUtils`' global handler, which React Native Firebase replaced.
+    - Android: logcat shows `io.invertase.firebase.crashlytics.JavaScriptError: Cannot read property 'url' of undefined`, then frames such as `at .parseProfile(address at index.android.bundle:1:485277)`, then the VM exits with code 0. iOS logs "Crashlytics - Crash logged. Terminating app."
+    - `stacktrace-js` reads Hermes's `address at` prefix as part of the file name.
+    - Function names survive. Built-ins show as `(native):0:0` frames, for example `.toISOString((native):0:0)` above `dayKey`.
+    - `prepare`, the function between the timer's closure and `parseProfile`, is missing from the stack. Hypothesis: the Hermes compiler inlined it (`-O`).
+  - **An error while React renders** goes to React's `onUncaughtError`, which calls `ExceptionsManager.handleException(error, true)` directly, not through `ErrorUtils`, so React Native Firebase never sees it. The app crashes natively.
+    - Android: `FATAL EXCEPTION: mqt_v_native`, `com.facebook.react.common.JavascriptException: TypeError: Cannot read property 'label' of undefined`. The message holds the component stack ("This error is located at: at TagList (address at index.android.bundle:1:487060) …"), then `, stack:` and the JS stack.
+    - iOS: an uncaught `RCTFatalException: Unhandled JS Exception: TypeError: …`, with a crash report in `~/Library/Logs/DiagnosticReports/`.
+  - **An error inside a promise** is a rejection, not a crash. The testbed's screen catches it and calls `recordError`, and Crashlytics' debug log on Android shows "disk worker: log non-fatal event to persistence".
+  - Hermes's messages: "Cannot read property 'url' of undefined" (V8: "Cannot read properties of undefined (reading 'url')"), and "Date value out of bounds" for `toISOString()` of an invalid date.
+- **Dates:** Hermes's `Date` parser (`lib/VM/JSLib/DateUtil.cpp`) takes ISO dates, with a `T` or a space between date and time, and forms that start with a weekday. `2026-10-16 10:00` parses; `2026/10/16 10:00` doesn't, and `toISOString()` throws. Node 24 parses every `YYYY/MM/DD HH:mm` with each field in range: 8,035,200 strings over 15 years, in three time zones (Europe/Paris, UTC, America/Los_Angeles).
+- **Opening a screen from the command line**
+  - `xcrun simctl openurl` with a custom scheme asks "Open in "TestbedRN"?" every time, and `simctl` can't confirm it.
+  - React Native's iOS `Settings` reads a launch argument (`simctl launch … -screen inbox`) from `NSUserDefaults`.
+  - On Android, `am start -a android.intent.action.VIEW -d testbedrn://…` hands the link to `Linking.getInitialURL()`.
+  - An app that handles its launch screen inside that promise turns a crash into a rejection. The testbed opens the screen from a timer instead.
+- **Jest:** React Native Firebase's modules and React Native's `Settings` (TurboModule `SettingsManager`) don't exist under Jest, and need `jest.mock` stubs in the setup file.
+
 ## 8. Risks
 
 - **Testability of real apps.** Logic living in Activities, Fragments or ViewControllers can't be unit-tested without refactoring. Mitigation: an honest "can't reproduce" path, and measuring the reproducible share early.

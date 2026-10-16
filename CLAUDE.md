@@ -61,6 +61,7 @@ package.json, tsconfig.json      dev only (tsc for type checks); no runtime depe
 testbed/android/                 sample app with seeded crashes, used as the eval
 testbed/ios/                     the same for iOS (Swift, UIKit), on a simulator
 testbed/swiftui/                 the same for a SwiftUI app
+testbed/react-native/            the same for React Native (JS crashes), on an Android emulator and an iOS simulator
 testbed/copy-android.sh          copies it into a repository of its own, where the eval runs
 testbed/copy-ios.sh              the same for testbed/ios, or testbed/swiftui (copy-ios.sh swiftui <dest>)
 eval/metrics.ts                  eval metrics from Claude Code session transcripts
