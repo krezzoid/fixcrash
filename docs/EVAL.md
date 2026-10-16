@@ -1,6 +1,6 @@
 # fixcrash — eval
 
-`/fixcrash:fix` on the three seeded crashes of each testbed: Android (`docs/PLAN.md`, step 4), then iOS (step 5.6). The details behind each finding are in `docs/RESEARCH.md` §7.
+`/fixcrash:fix` on the three seeded crashes of each testbed: Android (`docs/PLAN.md`, step 4), then iOS (step 5.6), then a SwiftUI app (step 5.7.5). The details behind each finding are in `docs/RESEARCH.md` §7.
 
 # Android
 
@@ -76,3 +76,31 @@ Claude Code 2.1.300, `claude-opus-5-5`, firebase-tools 15.32.1, Xcode 27.0, Fire
    - Both main sessions first passed `verify` the test id in xcodebuild's form, `TestbedTests/ProfileParserTests/testParsesProfileWithoutAvatar`, as in the fix skill's `-only-testing` example. `reproduce` and `verify` now take that form too.
    - A test step whose retry hung as well left a result bundle without its `Info.plist`; reading it made `verify` exit 2 (paging's second `verify`). Unfinished bundles are now skipped, and such a run says it didn't run.
 5. **The PR body was edited after the guard let the PR through.** The paging session appended Claude Code's attribution line with `gh pr edit`, from the user's settings. The guard checks creating a PR, not editing one; the receipt's proof was untouched.
+
+# SwiftUI
+
+## Setup
+
+As for iOS, with these differences:
+
+- **The app.** `testbed/copy-ios.sh swiftui <dest>` copies `testbed/swiftui` (the SwiftUI `App` lifecycle, Crashlytics through SPM).
+- **The crashes.** The testbed's Release build crashed once per scenario on the iOS 27.0 simulator, through `testbed/swiftui/trigger-crash.sh`; for action, Claude tapped Archive through Claude Code's iOS Simulator tool. In all three, the blame frame is the app frame that crashed: nothing was inlined into it.
+- One false start isn't counted: a session given another app's issue id, which stopped at "Login expired". The render session also began with a login, so its wall time includes it.
+
+## Results, 2026-10-16
+
+Claude Code 2.1.301, `claude-opus-5-5`, firebase-tools 15.32.1, Xcode 27.1 with the iOS 27.0 simulator, Firebase iOS SDK 13.0.1.
+
+| Scenario | Crash (blame frame) | Expected | Outcome | `reproduce` runs | `verify` runs | PR | Agent time | Tool calls | Cost |
+|----------|---------------------|----------|---------|------------------|---------------|----|------------|------------|------|
+| render | `EXC_BREAKPOINT` at `closure #1 in closure #1 in TagsView.body.getter`, a `ForEach` row | PR | ✅ PR | 1 | 1 | yes | 3m 52s | 18 (4 in the reproducer) | $0.81 |
+| async | `EXC_BREAKPOINT` at `InboxModel.load()`, after an `await` | PR | ✅ PR | 1 | 1 | yes | 3m 10s | 20 (4 in the reproducer) | $0.73 |
+| action | `EXC_BREAKPOINT` at `closure #1 in closure #2 in ArchiveView.body.getter`, a toolbar button's action | report, no PR | ✅ report, no PR | 0 | - | no | 1m 18s | 14 (3 in the reproducer) | $0.64 |
+
+## Findings
+
+1. **The SwiftUI guidance was enough.** The render reproducer opened the screen through the app's own entry, `ContentView(screen: .tags)`, in a window on the app's scene, and let the run loop lay out the list; the async one added a test to the existing `InboxModelTests` that injects an empty `fetch` and awaits `load()`. Both reproduced on their first attempt, and the main session accepted each test as reaching the crash the way the app does.
+2. **The fastest iOS runs so far.** Three to four minutes of agent time for a PR, against seven to ten on the UIKit testbed. Each `verify` made its three runs in 8 to 14 s each, with no hang and no retry, and each session got the test id right the first time.
+3. **The action report came without a single run.** The reproducer saw that the crash is in a button's action on `private @State`, ruled out private accessibility calls, reflection and swizzling on its own (the shortcut rule never fired), and answered NOT REPRODUCED with its budget untouched. The report gave the cause and three ways to reach it: the logic moved into an `ArchiveModel` (recommended, as the testbed's other screens do), a UI test, or ViewInspector as a project diff, described and not applied; then a breadcrumb that would tell "never selected" from "tapped twice", and a defensive change, not committed.
+4. **Nothing to fix in fixcrash.** No hook denials, no PR edited after the guard; both PR bodies carry the crash site line from the release build.
+5. **For review, not for fixcrash.** The render test asserts nothing: it passes as long as the screen renders. As a crash regression test that's enough, but a reviewer may want the rows checked. The async fix gives an empty inbox an empty headline, a product choice the PR leaves to its reviewer.
