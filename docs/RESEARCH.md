@@ -481,6 +481,33 @@ These end in an honest report. The plugin's value depends on the share of the fi
   - Android non-fatal: `io.invertase.firebase.crashlytics.JavaScriptError` at `.?anon_0_`. No frame parses: the `address at …:1:<column>` location doesn't match the frame pattern.
   - iOS, both kinds: no expectation. `RCTFatalException` and `JavaScriptError` have no dot, so the exception header doesn't parse. The subtitle starts with no Mach exception, and the non-fatal's blame `file` is a folded YAML scalar that `parseFlatMap` reads as `>-`.
 
+**2026-10-16: Symbolication and the failing Jest test (step 6.4)** (the testbed at `8ee5a3b`, exported with `git archive` to another path; npm 11, Node 24.21, metro-symbolicate 0.87, the RN 0.88 template's Jest 29; spike tests in the copy, not committed)
+
+- **`node_modules` at another path:** `npm ci --offline` took 3 s and wrote 481 MB, all from npm's cache. npm 11 skipped the packages' install scripts (it asks for approval), and neither the tests nor the bundle needed them.
+- **Rebuilding the shipped bundle**, with the commands the release builds run
+  - Android: `node node_modules/react-native/cli.js bundle --platform android --dev false --reset-cache --entry-file index.js --bundle-output <out>/index.android.bundle --assets-dest <dir> --sourcemap-output <out>.packager.map --minify false` took 1.9 s. Then `node_modules/hermes-compiler/hermesc/osx-bin/hermesc -w -emit-binary -max-diagnostic-width=80 -out <out>.hbc <out> -O -output-source-map` took 1.0 s. Then `node node_modules/react-native/scripts/compose-source-maps.js <packager map> <hbc map> -o <map>` took 0.3 s.
+  - iOS: the same with `--platform ios`, and `hermesc -emit-binary -max-diagnostic-width=80 -O -output-source-map`. The iOS build ran that `hermesc` too, from `node_modules`, not from the Pods.
+  - **The bytecode matches.** Android's was byte-identical to the APK's `assets/index.android.bundle`. iOS's differed in 40 of 1,108,924 bytes from the app's `main.jsbundle`, probably the source file's path, which differed.
+  - The composed maps matched the release builds' maps in `mappings`, `names`, `x_facebook_sources` and `x_hermes_function_offsets`. Only `sources` differed, in the absolute paths.
+- **`metro-symbolicate <map>`** (from the app's `node_modules`), on the 6.3 events' frames, through the rebuilt maps:
+  - `parseProfile@1:485277` → `src/profile.ts:15:parseProfile`.
+  - `anonymous@1:708373` → `App.tsx:55:prepare`: the frame Hermes names `anonymous` is `prepare`, which the Hermes compiler inlined into the timer's closure.
+  - `dayKey@1:485517` → `src/updates.ts:13:dayKey`, then `groupByDay` and `prepare`.
+  - render: `anonymous@1:665004` → `src/TagList.tsx:19:Array.from$argument_1`, then `TagList@1:487346` → `src/TagList.tsx:17:TagList`, then React's `ReactFabric-prod.js`.
+  - React Native Firebase's frames, `at .?anon_0_ (address at index.android.bundle:1:698961)` → `at .?anon_0_ (address at src/inbox.ts:14:loadHeadline)`. The async function's name comes back from Metro's function map.
+  - The output has a line and the enclosing function's name, no column.
+  - It fails on `(native):0:0` ("Line must be greater than or equal to 1, got 0"), and gives `null:null:null` for iOS's `main.jsbundle:1:484854:1`. Without the trailing `:1` it reads it.
+  - iOS's offsets differ from Android's, and map to the same lines.
+- **The failing tests** (`jest <path> --json --outputFile=<file>`)
+  - Each failure is a string in `assertionResults[].failureMessages`: the error's `name: message`, then V8's stack, mapped through Babel's source maps. `failureDetails` is empty for a thrown error.
+  - parser: `TypeError: Cannot read properties of undefined (reading 'url')`, `at url (<root>/src/profile.ts:15:62)`, then the test file.
+  - async: `TypeError: … (reading 'title')`, `at title (<root>/src/inbox.ts:14:28)`, `at Generator.next (<anonymous>)`, `at asyncGeneratorStep (<root>/node_modules/@babel/runtime/helpers/asyncToGenerator.js:3:17)`. No test-file frame: the test awaited the rejection.
+  - render (react-test-renderer in `act`): `TypeError: … (reading 'label')`, `at label (<root>/src/TagList.tsx:19:25)`, `at Array.from (<anonymous>)`, `at from (<root>/src/TagList.tsx:17:14)`, then react-test-renderer's development build.
+  - The files and lines are the symbolicated event's. The names are not: Jest names a frame after the identifier at the mapped position (`url`, `title`, `label`, `from`), not its function.
+  - engine: `dayKey('2026/10/16 10:00')` doesn't throw under Node. A test that swaps `Date` (`jest.spyOn(global, 'Date').mockImplementation(…)`) fails with `RangeError: Invalid time value` at `src/updates.ts:13:30`, Hermes's crash line.
+  - Test names: `fullName` is the `describe` titles and the test's title joined with spaces (`TagList renders a page whose total counts tags it lacks`). The file is the result's `name`, an absolute path. A targeted run is `jest <file> -t '<anchored, escaped fullName>'`.
+  - Time: four failing tests 1.8 s, the testbed's suite of 12 tests 1.9 s.
+
 ## 8. Risks
 
 - **Testability of real apps.** Logic living in Activities, Fragments or ViewControllers can't be unit-tested without refactoring. Mitigation: an honest "can't reproduce" path, and measuring the reproducible share early.
