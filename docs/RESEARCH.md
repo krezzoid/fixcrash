@@ -401,6 +401,24 @@ These end in an honest report. The plugin's value depends on the share of the fi
 
 **2026-10-07: React Native Firebase.** JS errors go through `recordError` (also the global handler). The JS stack is converted to a mock native exception. Line numbers are relative to the bundle after transpilation and minification, so source maps have to be kept and applied by the developer.
 
+**2026-10-16: React Native, before step 6** (React Native Firebase 26.4.0, source of `packages/crashlytics` on `main`; `@react-native-community/template` 0.88.0; reactnative.dev/docs/symbolication)
+
+- **A JS crash, as React Native Firebase reports it**
+  - The global handler (`ErrorUtils.setGlobalHandler`) converts the error's stack with `stacktrace-js` (`StackTrace.fromError(error, { offline: true })`) when `isErrorGenerationOnJSCrashEnabled` is on. It sets the custom key `com.firebase.crashlytics.reactnative.fatal` to a timestamp, logs the Analytics event `app_exception` with `fatal: 1` when Analytics is there, then calls `crashWithStackPromise`. With handler chaining on, it calls `recordErrorPromise` instead, then the original handler.
+  - Natively, both calls record an exception, and `crashWithStackPromise` then exits the app (`System.exit(0)`, `exit(0)`). No native crash happens. According to the source, the custom key is what makes the backend treat the event as fatal.
+  - Android: `recordException` of an `io.invertase.firebase.crashlytics.JavaScriptError` (`UnhandledPromiseRejection` for a rejection), with `StackTraceElement("", fn, file, -1)` frames. iOS: `recordExceptionModel` of a `FIRExceptionModel` named `JavaScriptError` (or `UnhandledPromiseRejection`), with `FIRStackFrame` frames (`fn`, `file`, `line`).
+  - The payload's message is `error.message`, without the error's name: a `TypeError` arrives as `JavaScriptError` with its message. A frame's `file` is the file name without its query, plus `:<line>:<column>`, and `fn` is the function name or `<unknown>`. `recordError(error, jsErrorName)` adds a first frame that carries the name in `file`.
+  - Unhandled rejections are tracked with the `promise` library's `rejection-tracking` module, for all rejections, and ignored when `__DEV__` is set.
+- **The RN template (0.88.0, published 2026-10-16)**
+  - React 19.3.0, Jest 29 with `@react-native/jest-preset`, react-test-renderer 19.3.0, and a test that renders `App`.
+  - Hermes on (`hermesEnabled=true`); the Hermes compiler's flags default to `-O -output-source-map`. Node 22.11 or later.
+  - A Gemfile for CocoaPods (Ruby 2.6.10 or later).
+- **Symbolication** (the RN docs)
+  - `metro-symbolicate <map> < <stack trace>`. The map must come from the crashing build's commit.
+  - Android release builds write the composed map to `android/app/build/generated/sourcemaps/react/release/index.android.bundle.map`.
+  - iOS builds make no map unless `SOURCEMAP_FILE` is exported in the "Bundle React Native code and images" build phase.
+- **This machine:** no CocoaPods and no Watchman. Ruby is the system's 2.6.10. Android Studio's JDK is 25.
+
 ## 8. Risks
 
 - **Testability of real apps.** Logic living in Activities, Fragments or ViewControllers can't be unit-tested without refactoring. Mitigation: an honest "can't reproduce" path, and measuring the reproducible share early.
