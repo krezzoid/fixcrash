@@ -427,7 +427,7 @@ These end in an honest report. The plugin's value depends on the share of the fi
   - `pod install` adds React Native Firebase's "[RNFB] Crashlytics Configuration" build phase to the app target. With the SDK from SPM, the phase runs `upload-symbols` in the foreground with `-gsp ${PROJECT_DIR}/GoogleService-Info.plist`, the directory of the Xcode project, not the app's folder. With the config there, the Release build printed "Successfully uploaded Crashlytics symbols".
   - With Hermes on, release bundles skip Metro's minifier. The Gradle plugin sets `minifyEnabled` to `!hermesEnabled`, and `react-native-xcode.sh` passes `--minify false`. The Hermes compiler comes from the npm package `hermes-compiler`.
   - Android keeps the composed source map in `android/app/build/generated/sourcemaps/react/release/index.android.bundle.map`. An iOS build writes one when `SOURCEMAP_FILE` is passed to `xcodebuild` as a build setting.
-- **Three ways a JS error reaches Crashlytics**, all three seen on both platforms
+- **Three paths a JS error takes in the app**, all three seen on both platforms, with handler chaining off (what reaches Crashlytics is step 6.3)
   - **An error in a timer callback** (and, by React Native's design, in a button's handler) goes to `ErrorUtils`' global handler, which React Native Firebase replaced.
     - Android: logcat shows `io.invertase.firebase.crashlytics.JavaScriptError: Cannot read property 'url' of undefined`, then frames such as `at .parseProfile(address at index.android.bundle:1:485277)`, then the VM exits with code 0. iOS logs "Crashlytics - Crash logged. Terminating app."
     - `stacktrace-js` reads Hermes's `address at` prefix as part of the file name.
@@ -446,6 +446,41 @@ These end in an honest report. The plugin's value depends on the share of the fi
   - An app that handles its launch screen inside that promise turns a crash into a rejection. The testbed opens the screen from a timer instead.
 - **Jest:** React Native Firebase's modules and React Native's `Settings` (TurboModule `SettingsManager`) don't exist under Jest, and need `jest.mock` stubs in the setup file.
 
+**2026-10-16: React Native events through Firebase MCP (step 6.3)** (the step 6.2 testbed, its Release builds on the API 37 emulator and the iOS 27.0 simulator; React Native Firebase 26.4.0, Crashlytics SDK 20.1.0 on Android and 12.19.2 on iOS, firebase-tools 15.32.1). Answers §9 question 1 for RN.
+
+- **React Native Firebase's report of a fatal JS error is lost**
+  - With handler chaining off, as the testbed had it in 6.2 and as React Native Firebase's docs advise once an app is integrated: no parser or engine crash reached Crashlytics on either platform, 40 minutes after the crashes.
+    - On Android, with Crashlytics' debug log on, the `JavaScriptError` line is followed straight by "VM exiting with result code 0". "disk worker: log non-fatal event to persistence" never shows: the SDK writes a recorded exception on a background worker, and `crashWithStackPromise` exits before it does.
+    - On iOS, the report folder (`Library/Caches/com.crashlytics.data/<bundle id>/v5/reports/active/<id>/`) held no exception record after the crash.
+  - With chaining on, React Native Firebase's default, React Native's own handler crashes the app natively after React Native Firebase records the error.
+    - Android: only the native crash arrives. React Native Firebase's `JavaScriptError` is lost here too.
+    - iOS: both arrive, from the same report: the native crash as a FATAL event, and React Native Firebase's `JavaScriptError` as a NON_FATAL one. The custom key that marks it fatal didn't make it FATAL.
+  - The testbed now runs React Native Firebase's default (no `firebase.json`).
+- **The native crash is what carries a fatal JS error**, render errors included
+  - **Android:** `exceptions` is `com.facebook.react.common.JavascriptException: <JS error type>: <Hermes message>, stack:`, then the JS stack as `<function>@1:<column>` lines (`parseProfile@1:485277`, `anonymous@1:708373`), then the Java frames. A render error adds React's component stack (`at TagList (address at index.android.bundle:1:487060)` …) before `, stack:`, and its JS stack runs `anonymous@1:664863`, `TagList@1:487205`, `renderWithHooks@1:267316`, ….
+  - **Every fatal JS error on Android is in one issue**, under one variant. The issue is titled `com.facebook.react.modules.core.ExceptionsManagerModule.reportException`. Its blame frame is `ExceptionsManagerModule.reportException (ExceptionsManagerModule.kt:52)`, `owner: THIRD_PARTY`. Parser, engine and render events all landed in issue `77ff1260…`. The issue's subtitle shows one event's message, and the other events can only be found by reading the events themselves.
+  - **iOS:** an `RCTFatalException` NSException. The issue is titled `[CoreFoundation]`, and its subtitle reads `RCTFatalException: Unhandled JS Exception: <type>: <message> - ExceptionsManager.reportException raised an exception: Unhandled JS Exception: <type>: <message>, stack:` followed by the JS stack (`parseProfile@1:484854`, `anonymous@1:706303`).
+    - The event's `exceptions` holds the same text, then 12 bare `at` lines. The blame frame has only `library: CoreFoundation` and an `address` (the `__exceptionPreprocess` offset), `owner: DEVELOPER`. The crashed thread is Crashlytics' own handler and React Native's TurboModule queue.
+    - Unlike Android, each error is an issue of its own: parser and engine are two issues.
+  - The JS error's type (`TypeError`, `RangeError`) is in the native crash's message, but not in React Native Firebase's events.
+  - iOS render crashes didn't reach Crashlytics: the one at 20:27 with chaining off, and the one at 21:07 with chaining on. Both left an `.ips` report on the Mac. Cause unknown.
+- **React Native Firebase's non-fatal events** (`recordError`, and on iOS the chained copy of a fatal one)
+  - **Android:** `exceptions` is `io.invertase.firebase.crashlytics.JavaScriptError: <message>`, then frames such as `at .?anon_0_ (address at index.android.bundle:1:698961)`, `at .next ((native):0:0)`, `at .asyncGeneratorStep (address at index.android.bundle:1:432790)`, `at .tryCallOne (address at InternalBytecode.js:1:27784)`.
+    - The blame frame is the top frame, with `file: address at index.android.bundle:1:698961`, `symbol: .?anon_0_`, `owner: THIRD_PARTY`. The issue is titled `<file> - <symbol>`.
+  - **iOS:** `JavaScriptError: <message>`, then frames such as `at parseProfile (address at <app container>/TestbedRN.app/main.jsbundle:1:484854:1)`. The file is the bundle's absolute path in the app's container (on the simulator, under the user's home directory), and `:1` (the frame's line) is appended to it.
+    - The blame frame has `symbol: parseProfile`, `line: '1'`, `owner: DEVELOPER`, and the path as `file`. For the engine crash the blame frame is the built-in, so the issue is titled `(native):0:0 - toISOString`.
+    - A new install has a new container path. Its events still joined the same issue: async from two installs is one issue.
+  - **After `await`, the function's name is gone:** `loadHeadline`'s code after the `await` runs as `?anon_0_`, the generator that Babel's async-to-generator transform makes of it, under `asyncGeneratorStep` and Hermes's promise internals (`InternalBytecode.js`).
+- **A rejection nobody catches** reaches nothing: a temporary build without the inbox's `catch` showed "Loading…" forever. Android's log had no non-fatal and no rejection line, and Crashlytics had no event.
+- **Both platforms:** each platform has its own bundle and offsets: `parseProfile` is at 485277 on Android and 484854 on iOS. Every frame is on line 1, and the column is a Hermes bytecode offset. Hermes's messages are what the events show.
+- **Version and commit:** version `1.0 (1)` on both platforms. Android's `buildStamp` is `generate_error_reason: NO_SUPPORTED_VCS_FOUND` (the Gradle root is `android/`, not the git root), iOS has none. Only a release tag finds the commit.
+- **Other fields:** `user.id`, `customKeys` (`screen`), `logs` and `installationUuid` arrive as with native crashes. Redaction applies as before. The simulator's bundle path also carries the user's home directory, which no redaction rule removes; a device's path (`/private/var/containers/Bundle/Application/<uuid>/`) doesn't.
+- **App ids:** `apps:sdkconfig ANDROID` writes a `google-services.json` that lists every Android app in the project. `fixcrash app-id --project-dir testbed/react-native` prints three ids: both Android apps from that one file, and the iOS app. Only the package name tells which Android app is this one.
+- **fixcrash today** (`toCrashEvent` and `expectationOf` run on copies of the events)
+  - Android native crash: the expectation is `com.facebook.react.common.JavascriptException` at `ExceptionsManagerModule.reportException`, a frame no Jest test has. The JS stack sits unparsed in the message.
+  - Android non-fatal: `io.invertase.firebase.crashlytics.JavaScriptError` at `.?anon_0_`. No frame parses: the `address at …:1:<column>` location doesn't match the frame pattern.
+  - iOS, both kinds: no expectation. `RCTFatalException` and `JavaScriptError` have no dot, so the exception header doesn't parse. The subtitle starts with no Mach exception, and the non-fatal's blame `file` is a folded YAML scalar that `parseFlatMap` reads as `>-`.
+
 ## 8. Risks
 
 - **Testability of real apps.** Logic living in Activities, Fragments or ViewControllers can't be unit-tested without refactoring. Mitigation: an honest "can't reproduce" path, and measuring the reproducible share early.
@@ -456,7 +491,7 @@ These end in an honest report. The plugin's value depends on the share of the fi
 
 ## 9. Open questions (answer in the spike)
 
-1. ~~Does `buildStamp` carry the git commit on Android, from AGP VCS info in release builds?~~ Answered in §7 (spike). ~~Is there anything comparable on iOS?~~ No: iOS events have no build stamp (§7, step 5.3).
+1. ~~Does `buildStamp` carry the git commit on Android, from AGP VCS info in release builds?~~ Answered in §7 (spike). ~~Is there anything comparable on iOS?~~ No: iOS events have no build stamp (§7, step 5.3). ~~React Native?~~ No: the Android project isn't the git root, and iOS has none (§7, step 6.3).
 2. Are 20 frames enough to reach app code in typical Kotlin stacks (coroutines, RxJava, Compose)? Do we need the full event? Partly answered in §7: `blameFrame` survives truncation; real-app stacks still unchecked.
 3. What share of a real app's top crashes can a unit test reproduce? This is the number that decides whether the plugin is useful.
 4. ~~How do Debug builds and emulators report to Crashlytics, and how fast? Do events need a release build with an uploaded mapping?~~ Answered in §7 (spike).

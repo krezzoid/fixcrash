@@ -4,10 +4,12 @@ A small React Native app with four seeded JS crashes, built from the Community C
 
 | Scenario | Screen | Crash | Function | Reported as | Jest-reproducible |
 |----------|--------|-------|----------|-------------|-------------------|
-| `parser` | profile | `TypeError`: the profile JSON has no `avatar` | `parseProfile` | a fatal JS error, through React Native Firebase's handler | yes |
-| `render` | tags | `TypeError` while React renders the list: the backend's `total` counts tags it doesn't send | the row closure in `TagList` | a native crash: React Native's own handler takes uncaught React errors, React Native Firebase's never sees them | yes, by rendering `TagList` |
+| `parser` | profile | `TypeError`: the profile JSON has no `avatar` | `parseProfile` | a native crash, with the JS stack in its message | yes |
+| `render` | tags | `TypeError` while React renders the list: the backend's `total` counts tags it doesn't send | the row closure in `TagList` | a native crash, with the JS stack in its message | yes, by rendering `TagList` |
 | `async` | inbox | `TypeError` after an `await`: the inbox came back empty | `loadHeadline` | a non-fatal: the screen catches it and calls `recordError` | yes, with an `async` test |
-| `engine` | updates | `RangeError` from `toISOString()`: Hermes can't parse `2026/10/16 10:00` | `dayKey` | a fatal JS error, through React Native Firebase's handler | no: expected outcome is a report, no PR |
+| `engine` | updates | `RangeError` from `toISOString()`: Hermes can't parse `2026/10/16 10:00` | `dayKey` | a native crash, with the JS stack in its message | no: expected outcome is a report, no PR |
+
+A fatal JS error reaches Crashlytics as React Native's native crash: `com.facebook.react.common.JavascriptException` on Android, where all of them share one issue, and `RCTFatalException` on iOS. React Native Firebase's own report of it, with frames, is lost, except on iOS, where it arrives as an extra non-fatal (`docs/RESEARCH.md` §7, step 6.3).
 
 Why `engine` is out of Jest's reach: Jest runs on Node, whose `Date` parses every time that passes `dayKey`'s format check (checked for every month, day, hour and minute of 15 years). Hermes parses ISO dates (a `T` or a space between date and time) and the forms that start with a weekday, `Fri Oct 16 2026 10:00:00` or `Fri, 16 Oct 2026 10:00:00`, and nothing else (`lib/VM/JSLib/DateUtil.cpp`). The only way to make `dayKey` throw under Node is to replace `Date` in the test, which proves nothing about the app.
 
@@ -60,6 +62,6 @@ The script launches the app with the scenario's screen (`profile`, `tags`, `inbo
 ## Notes
 
 - The home screen has a button for each screen, for trying them by hand.
-- `firebase.json` turns off React Native Firebase's handler chaining, as its docs advise. With chaining on (the default), React Native Firebase records a fatal JS error, then passes it to React Native's own handler, which crashes the app natively: the same error can be reported twice.
+- React Native Firebase runs with its defaults: there is no `firebase.json`. Its docs advise turning handler chaining off once an app is integrated, but then the app exits before its report of a fatal JS error is written, and nothing reaches Crashlytics.
 - Release builds are signed with `android/app/debug.keystore`, the template's public debug key, as the template does.
 - All values in the app are synthetic, including the Crashlytics user id `test-user-0001`.
