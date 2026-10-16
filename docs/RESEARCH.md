@@ -391,6 +391,14 @@ These end in an honest report. The plugin's value depends on the share of the fi
   - fixcrash's shortcut check would refuse the spike's test, for its `unsafeBitCast` of the `dlsym` pointer; a `@_silgen_name` declaration would pass. The decision on this path is ADR-0003.
 - **Xcode updated itself** to 27.1 overnight. Until its components were installed (an admin password), the system's CoreSimulator (1171.7) was older than the new Xcode's (1174.9.2): `xcodebuild` reported "Unable to find a device matching the provided destination specifier", with "CoreSimulator is out of date" a few lines above it, and `simctl` hung.
 
+**2026-10-16: fixcrash on a copy of the SwiftUI testbed (step 5.7.4)** (`testbed/copy-ios.sh swiftui`, events recorded from the step 5.7.2 issues as the hook would; Xcode 27.1, iOS 27.0 simulator; tests written as the reproducer's SwiftUI guidance says)
+
+- **The copy** took 32 s, its Release build included.
+- **render:** a test that renders `TagsView` in a `NavigationStack`, in a window on the app's scene. `reproduce` REPRODUCED on the first attempt in 53 s: a Release build of `v1.0` in fixcrash's cache, `atos` at the event's address (`crash site: the crash is in closure #1 in closure #1 in TagsView.body.getter(TagsView.swift:10) itself (Swift runtime failure: Index out of range)`), then the test, 22 s. With the rows built from the tags themselves, `verify` VERIFIED in 35 s: base and fix parent fail as the crash did, the fix passes, the suite is green.
+- **async:** a test that awaits `InboxModel().load()`. REPRODUCED in 24 s (the release build cached), VERIFIED in 36 s with a headline for an empty inbox.
+- **action:** a test that turns accessibility on through `@_silgen_name("_AXSApplicationAccessibilitySetEnabled")` was refused in 0.15 s, before any build: "turns accessibility on through private libAccessibility functions, line 5".
+- No hang in any run.
+
 **2026-10-07: React Native Firebase.** JS errors go through `recordError` (also the global handler). The JS stack is converted to a mock native exception. Line numbers are relative to the bundle after transpilation and minification, so source maps have to be kept and applied by the developer.
 
 ## 8. Risks

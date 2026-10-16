@@ -62,7 +62,7 @@ testbed/android/                 sample app with seeded crashes, used as the eva
 testbed/ios/                     the same for iOS (Swift, UIKit), on a simulator
 testbed/swiftui/                 the same for a SwiftUI app
 testbed/copy-android.sh          copies it into a repository of its own, where the eval runs
-testbed/copy-ios.sh              the same for testbed/ios
+testbed/copy-ios.sh              the same for testbed/ios, or testbed/swiftui (copy-ios.sh swiftui <dest>)
 eval/metrics.ts                  eval metrics from Claude Code session transcripts
 ```
 

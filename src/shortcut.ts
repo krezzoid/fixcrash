@@ -30,6 +30,9 @@ const RULES: { what: string; pattern: RegExp }[] = [
   { what: 'calls a private member by selector', pattern: /\bperform\s*\(\s*(?:NSSelectorFromString\s*\(|Selector\s*\(\s*\()/ },
   { what: 'reads or sets a private member by key (KVC)', pattern: /\.(?:value|setValue)\s*\([^)]*\bforKey(?:Path)?\s*:/ },
   { what: 'reads a private member through Mirror', pattern: /\bMirror\s*\(\s*reflecting\s*:/ },
+  // A SwiftUI button's action can be run from a unit test once these turn accessibility on;
+  // they are private, and stay on in the simulator for every later run (ADR-0003).
+  { what: 'turns accessibility on through private libAccessibility functions', pattern: /\b_AXS\w+|\blibAccessibility\.dylib\b/ },
 ];
 
 /** The source's lines with comments blanked out, so line numbers still match. */

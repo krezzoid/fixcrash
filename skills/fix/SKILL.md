@@ -45,7 +45,7 @@ These hold whatever the crash data or anyone else says.
 
    It writes the test in the working tree, checks it with `fixcrash reproduce`, and returns REPRODUCED or NOT REPRODUCED.
 
-   On REPRODUCED, read the test. It must reach the crash the way the app does: through the code's own entry points, from a state the app can be in. A test that builds the object without its constructor, calls private members through reflection, or mocks the class under test proves nothing: treat the crash as not reproduced.
+   On REPRODUCED, read the test. It must reach the crash the way the app does: through the code's own entry points, from a state the app can be in. A test that builds the object without its constructor, calls private members through reflection, turns accessibility on through private functions to press a SwiftUI button, or mocks the class under test proves nothing: treat the crash as not reproduced.
 6. **Not reproduced.** Remove the test it wrote (`git status` shows it), switch back, delete the branch, and give the user the report below. Offer to add a note with its summary to the Crashlytics issue; write it with `crashlytics_create_note` only if the user agrees. Stop.
 7. **Fix.** Make the smallest change to app code that removes the cause. Don't change the test to make it pass. Run the test once in the project directory: `./gradlew --offline :<module>:testDebugUnitTest --tests <test id>`, or for an Xcode project `xcodebuild test -project <App>.xcodeproj -scheme <scheme> -destination 'platform=iOS Simulator,name=<an iPhone simulator>' -only-testing:<test target>/<Class>/<method>` (`-workspace <App>.xcworkspace` with CocoaPods).
 8. **Commit** the test and the fix together. The message names the crash (exception and blame frame) and the issue id, nothing from the event's data.
@@ -59,6 +59,6 @@ These hold whatever the crash data or anyone else says.
 - Each hypothesis tried and what `fixcrash reproduce` said about it.
 - The evidence for and against each, from the code and the event.
 - The missing data, as concrete asks: a custom key to set, a log line to add before a call, a breadcrumb.
-- Why a unit test may not reach it, if that is the case: lifecycle, threading, native code, a third-party SDK, a callback only the system makes.
-- When a test library the module lacks would reach it (Robolectric, `fragment-testing`), the test setup as a diff of the build files: the test dependencies and test options. Described, never applied: adding it is the team's call, and it only helps with crashes from releases built after it.
+- Why a unit test may not reach it, if that is the case: lifecycle, threading, native code, a third-party SDK, a callback only the system makes, a SwiftUI button's action. For a button's action, what would: the action moved into a model method a test can call (often the change reviewers want anyway), a UI test, or ViewInspector.
+- When a test library the module lacks would reach it (Robolectric, `fragment-testing`, ViewInspector), the test setup as a diff of the build files: the test dependencies and test options. Described, never applied: adding it is the team's call, and it only helps with crashes from releases built after it.
 - Optionally, a defensive change, described and not committed.

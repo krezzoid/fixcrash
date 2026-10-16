@@ -38,6 +38,9 @@ test('each rule catches its shortcut, in Swift', () => {
     ['let handler = service.value(forKey: "expirationHandler")', /KVC/],
     ['service.setValue(nil, forKey: "upload")', /KVC/],
     ['let children = Mirror(reflecting: service).children', /Mirror/],
+    ['let lib = dlopen("/usr/lib/libAccessibility.dylib", RTLD_NOW)', /libAccessibility/],
+    ['let set = dlsym(handle, "_AXSApplicationAccessibilitySetEnabled")', /libAccessibility/],
+    ['@_silgen_name("_AXSSetAutomationEnabled") func setAutomation(_ on: Int32)', /libAccessibility/],
   ];
   for (const [line, what] of cases) {
     const found = findShortcuts('T.swift', line, 'all').map((s) => s.what);
@@ -58,6 +61,9 @@ test('lets ordinary test code through', () => {
     'XCTAssertEqual(page.map(\\.id), Array(11...20))',
     'let vc = DetailsViewController(backend: backend)',
     'defaults.set(true, forKey: "onboarded")',
+    'XCTAssertFalse(UIAccessibility.isVoiceOverRunning)',
+    'Button("Archive") { archive() }.accessibilityLabel("Archive")',
+    'XCTAssertTrue(cell.accessibilityActivate())',
   ].join('\n');
 
   assert.deepEqual(whats(text), []);

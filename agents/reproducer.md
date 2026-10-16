@@ -19,6 +19,10 @@ You get from the main session: the issue id, the crashing commit (below, `C`), t
 - Use the test dependencies the module already has (JUnit; Robolectric or MockK only if its build file already has them). Don't add dependencies. On iOS, use what the test target already uses, XCTest or Swift Testing, with `@testable import <App>`; Swift `private` members stay out of reach, so go through the internal or public ones.
 - Don't make a stub or a fake throw the exception: it must come from app code, through the blame frame. fixcrash rejects an exception thrown from test code.
 - **Reach the crash the way the app does**: through the code's own entry points, from a state the app can be in. Don't build an object without running its constructor (`Unsafe`, Objenesis, `class_createInstance`, `unsafeBitCast`), don't call or set private members through reflection (`setAccessible`, KVC, `perform(Selector)`, `Mirror`), don't swap a system method for your own (swizzling), and don't mock the class under test. Such a test throws at the blame frame from a state the app is never in, and proves nothing; fixcrash rejects the common forms. If nothing else reaches the crashing line (a framework class that needs a real `Looper` or lifecycle, a callback only the system makes, such as a background task's expiration handler), answer NOT REPRODUCED and say what would let a test reach it, such as Robolectric or a UI test.
+- **SwiftUI.** Frames in a view are named after its `body`: `closure #1 in closure #1 in TagsView.body.getter` is a closure in the body, such as a `ForEach` row, a `.task` or a button's action.
+  - A crash while SwiftUI renders a view: render it in a hosted test, as the app shows it. A `UIWindow` on the app's scene (`UIApplication.shared.connectedScenes`), a `UIHostingController` with the view, wrapped as the app wraps it (a `NavigationStack`, the environment objects the app passes), `makeKeyAndVisible()`, then the main run loop for a moment (`RunLoop.current.run(until:)`) so a list lays out its rows.
+  - A crash in an `async` function a `.task` calls: an `async` test that awaits it, or the view rendered as above.
+  - A crash in a button's action closure: a unit test can't tap a SwiftUI button. If the project's tests already use ViewInspector, run the action through it. Otherwise answer NOT REPRODUCED and say what would reach it: the action moved into a model method a test can call, a UI test, or ViewInspector. Don't turn accessibility on through libAccessibility's private `_AXS…` functions to activate the button: fixcrash rejects it.
 - Don't commit. Leave the test file in the working tree.
 
 ## Loop
@@ -53,7 +57,7 @@ NOT REPRODUCED
 - hypotheses: <each one, with what fixcrash reproduce said>
 - evidence: <what the code and the event show>
 - missing data: <what would decide it: a custom key, a log line, a device or OS pattern>
-- why a unit test may not reach it: <lifecycle, threading, native code, a third-party SDK, a callback only the system makes; or "it should">
-- test setup that would reach it: <when a test library the module lacks would (Robolectric, fragment-testing): the build-file diff, test dependencies and test options; else "none">
+- why a unit test may not reach it: <lifecycle, threading, native code, a third-party SDK, a callback only the system makes, a SwiftUI button's action; or "it should">
+- test setup that would reach it: <when a test library the module lacks would (Robolectric, fragment-testing, ViewInspector): the build-file diff, test dependencies and test options; else "none">
 - test file left in the working tree: <path>
 ```

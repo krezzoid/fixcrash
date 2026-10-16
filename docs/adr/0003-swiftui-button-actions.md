@@ -88,6 +88,6 @@ B works today, and that is its pull. Against it: private calls in a test the tea
 
 ## Action items
 
-1. [ ] The reproducer's and the fix skill's guidance for SwiftUI: rendering a screen in a hosted test; a crash in an action closure is a report naming the model refactor, a UI test or ViewInspector; ViewInspector only if the project has it.
-2. [ ] A shortcut rule for private accessibility switches (`_AXS…` symbols, through `dlsym` or `@_silgen_name`), with a test.
+1. [x] The reproducer's and the fix skill's guidance for SwiftUI: rendering a screen in a hosted test; a crash in an action closure is a report naming the model refactor, a UI test or ViewInspector; ViewInspector only if the project has it.
+2. [x] A shortcut rule for private accessibility switches (`_AXS…` symbols, through `dlsym` or `@_silgen_name`), with a test.
 3. [ ] D on a testbed copy that has ViewInspector, if a real app asks for it.
