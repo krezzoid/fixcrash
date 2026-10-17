@@ -19,7 +19,7 @@
   - `metro-symbolicate` turns `parseProfile@1:485277` into `src/profile.ts:15:parseProfile`, `?anon_0_` into `src/inbox.ts:14:loadHeadline`, and the render crash's top frame into `src/TagList.tsx:19:Array.from$argument_1`. A frame's name is its enclosing function in the source, from Metro's function map. It gives no column for these lines. It stops at a `(native):0:0` frame, and can't read iOS's trailing `:1`.
 - What a failing Jest test gives: a thrown error with its `name` (`TypeError`), V8's message, and a stack that Jest maps through Babel's source maps. Files and lines are right. A frame's name is the identifier at the mapped position, not its function: `at url (src/profile.ts:15:62)`, `at title (src/inbox.ts:14:28)`, `at label (src/TagList.tsx:19:25)`.
 - Messages differ by engine ("Cannot read property 'url' of undefined" against "Cannot read properties of undefined (reading 'url')"). The rule never compares them.
-- A test that swaps `Date` for its own (`jest.spyOn(global, 'Date')`) throws the engine scenario's `RangeError` at `src/updates.ts:13`, the line Hermes crashes on. Node never does, from any input that passes the app's check.
+- A test that swaps `Date` for its own (`jest.spyOn(global, 'Date')`) throws the engine scenario's `RangeError` at `src/updates.ts:13`, the line Hermes crashes on. Node doesn't, from any input the app gets. *(Corrected in step 6.7: the app's check also accepts years 0013 to 0031, which V8 rejects too, so a made-up input does throw there on Node. The rule can't tell; the reproducer did.)*
 - Constraints: proof is enforced in code (rule 1); the crashing version is the one tested (rule 3); crash data is untrusted (rule 4).
 
 ## Decision

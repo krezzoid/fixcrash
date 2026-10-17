@@ -529,6 +529,11 @@ These end in an honest report. The plugin's value depends on the share of the fi
 - **`google-services.json` and `applicationId`:** the RN testbed's file lists both Android apps of the Firebase project. Its module's `android/app/build.gradle` has `applicationId "io.github.krezzoid.fixcrash.testbed.rn"`, the package of one of them: that client is the app's, and `fixcrash app-id` now keeps only it.
 - **`testbed/copy-rn.sh`** made a copy in 3.5 s, `npm ci` from the cache included: `Initial version` tagged `v1.0`, then `Start version 1.1`. The Firebase configs were copied and stayed untracked.
 
+**2026-10-17: The React Native eval (step 6.7)** (results in `docs/EVAL.md`; Node 24.21)
+
+- **V8 rejects years 0013 to 0031** in the testbed's format: `new Date('0013/01/01 10:00')` is an invalid date on Node 24.21, and `toISOString()` throws `RangeError: Invalid time value`. The app's check (`src/updates.ts:8`) accepts those years. So a made-up input throws the engine scenario's error at `src/updates.ts:13` on Node too. The backend's own dates parse there. Step 6.2 and ADR-0004 said no input that passes the check reaches the crash on Node; that was wrong.
+- **One version, two bundles.** The Android issue's six events include one from an earlier build of the testbed with the same version, `1.0 (1)`. Its frames are about 141 columns off the tagged commit's bundle, and symbolicated there its top frame lands in `react-native-safe-area-context`. The message and React's component stack (`TagList`) still match the other events of that error.
+
 ## 8. Risks
 
 - **Testability of real apps.** Logic living in Activities, Fragments or ViewControllers can't be unit-tested without refactoring. Mitigation: an honest "can't reproduce" path, and measuring the reproducible share early.

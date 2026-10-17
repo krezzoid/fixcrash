@@ -1,6 +1,6 @@
 # fixcrash — eval
 
-`/fixcrash:fix` on the three seeded crashes of each testbed: Android (`docs/PLAN.md`, step 4), then iOS (step 5.6), then a SwiftUI app (step 5.7.5). The details behind each finding are in `docs/RESEARCH.md` §7.
+`/fixcrash:fix` on the seeded crashes of each testbed: Android (`docs/PLAN.md`, step 4), then iOS (step 5.6), then a SwiftUI app (step 5.7.5), then React Native (step 6.7). The details behind each finding are in `docs/RESEARCH.md` §7.
 
 # Android
 
@@ -104,3 +104,53 @@ Claude Code 2.1.301, `claude-opus-5-5`, firebase-tools 15.32.1, Xcode 27.1 with 
 3. **The action report came without a single run.** The reproducer saw that the crash is in a button's action on `private @State`, ruled out private accessibility calls, reflection and swizzling on its own (the shortcut rule never fired), and answered NOT REPRODUCED with its budget untouched. The report gave the cause and three ways to reach it: the logic moved into an `ArchiveModel` (recommended, as the testbed's other screens do), a UI test, or ViewInspector as a project diff, described and not applied; then a breadcrumb that would tell "never selected" from "tapped twice", and a defensive change, not committed.
 4. **Nothing to fix in fixcrash.** No hook denials, no PR edited after the guard; both PR bodies carry the crash site line from the release build.
 5. **For review, not for fixcrash.** The render test asserts nothing: it passes as long as the screen renders. As a crash regression test that's enough, but a reviewer may want the rows checked. The async fix gives an empty inbox an empty headline, a product choice the PR leaves to its reviewer.
+
+# React Native
+
+## Setup
+
+As for Android and iOS, with these differences:
+
+- **The app.** `testbed/copy-rn.sh <dest>` copies `testbed/react-native` (React Native 0.88 with Hermes, React Native Firebase 26.4) and installs its `node_modules` from npm's cache. Tag `v1.0` is the crashing release; `main` starts 1.1.
+- **The crashes.** They are from step 6.3: the testbed's release builds on an Android emulator and the iOS 27.0 simulator. JS events carry no commit, so tag `v1.0` links version `1.0 (1)` to it.
+  - On Android, parser, render and engine are events of one issue, `JavascriptException` blamed on `ExceptionsManagerModule.reportException`. Async is a non-fatal `JavaScriptError` issue of its own.
+  - One more run fixed the iOS parser issue, to cover the iOS bundle.
+- **Runs.** `/fixcrash:triage <Android app id>` came first. Then each scenario ran `/fixcrash:fix <issue> <app id> <the error as triage named it>`, as a user would pick from the triage table: for example, `Cannot read property 'url' of undefined at src/profile.ts:15`.
+- Before the runs, the skills' examples that named testbed scenarios (`TagList`, `parsesProfileWithoutAvatar`) were replaced with neutral ones (`f10dbd4`). The Android and iOS evals ran with them.
+
+## Results, 2026-10-17
+
+Claude Code 2.1.302, `claude-opus-5-5`, firebase-tools 15.32.1, React Native 0.88.0, Node 24.21, npm 11.
+
+| Scenario | Crash (where `symbolicate` placed it) | Expected | Outcome | `reproduce` runs | `verify` runs | PR | Agent time | Tool calls | Cost |
+|----------|---------------------------------------|----------|---------|------------------|---------------|----|------------|------------|------|
+| triage | 4 JS errors in 2 issues | a table | ✅ parser, render, async likely; engine unlikely | - | - | - | 59s | 10 | $0.64 |
+| render | `TypeError` at `src/TagList.tsx:19`, Android, fatal | PR | ✅ PR | 1 | 1 | yes | 1m 45s | 20 (3 in the reproducer) | $1.04 |
+| parser | `TypeError` at `src/profile.ts:15`, Android, fatal | PR | ✅ PR | 1 | 1 | yes | 1m 58s | 20 (4 in the reproducer) | $1.01 |
+| engine | `RangeError` at `src/updates.ts:13`, Android, fatal | report, no PR | ✅ report, no PR | 1 | - | no | 2m 06s | 16 (5 in the reproducer) | $0.86 |
+| async | `JavaScriptError`, no type, at `src/inbox.ts:14`, Android, non-fatal | PR | ✅ PR | 1 | 1 | yes | 1m 57s | 18 (4 in the reproducer) | $0.71 |
+| parser, iOS | `TypeError` at `src/profile.ts:15`, iOS, fatal | PR | ✅ PR | 1 | 1 | yes | 2m 35s | 20 (6 in the reproducer) | $0.73 |
+
+## Findings
+
+1. **Symbolication made the JS errors readable, and the check exact.**
+   - Every session placed its error with `fixcrash symbolicate` before any test: `?anon_0_@1:698961` became `loadHeadline` at `src/inbox.ts:14`, and `anonymous@1:665004` became `src/TagList.tsx:19`.
+   - Each reproducer reproduced on its first attempt, matched by type, file and line.
+   - Each `verify` passed on its first run, 0.6 to 1.7 s per commit. A PR took under two minutes of agent time, as on Android.
+2. **Triage split the shared Android issue.** It read the issue's six events and gave each JS error its own row, placed in the sources. It called the engine error unlikely for the right reason: Hermes rejects the date format, and Node doesn't.
+   - It also spotted an event from an earlier build with the same version, `1.0 (1)`. That event's offsets are about 141 columns off, so symbolicated at `v1.0` it lands in `react-native-safe-area-context`. Triage and the render session both told it apart by its message and component stack.
+   - A version number doesn't pin a bundle, and the tagged commit's map doesn't fit such events.
+3. **The engine scenario has a path on Node, and only the reproducer's judgment kept it out.**
+   - The app's format check accepts years 0013 to 0031, which V8 rejects too: `new Date('0013/01/01 10:00').toISOString()` throws the crash's `RangeError` at `src/updates.ts:13`. fixcrash would have accepted such a test, since the type and the line match, though the backend never sends such a date.
+   - The reproducer found it, called it the right line for the wrong reason, and didn't submit it. Its report named the cause (Hermes's date parser), the two ways to reach it (a test on Hermes, or app code that doesn't depend on the engine), and a defensive change, not committed.
+   - As with native frames (Android, finding 1), the same type at the same line is necessary, not sufficient. The step 6.2 claim that Node parses every string the check accepts was wrong (`RESEARCH.md` §7, step 6.7).
+4. **One bug, two platforms, two issues, two pull requests.** The parser crash is one event in Android's shared issue and an iOS issue of its own, and its two sessions opened PR #2 and PR #4 with the same fix. Triage works per app, so it can't see this. Matching JS errors across apps by their symbolicated file and line would.
+5. **The step 6.6 and 6.7 changes to the skills held.**
+   - Each JS error got its own branch (`fixcrash/77ff1260-taglist-19`, `fixcrash/77ff1260-profile-15`), named from the arguments.
+   - The async test awaited `loadHeadline` itself.
+   - The tests mocked nothing beyond the app's Jest setup. The render test renders `TagList` with the app's own backend data, as the app does.
+   - There were no hook denials, and no PR was edited after the guard.
+6. **For review, not for fixcrash.**
+   - The Android parser test asserts only that parsing doesn't throw, as on Android.
+   - The render fix shows "5 tags" above 3 rows, and the async fix gives an empty inbox a placeholder headline. Each is a product choice the PR names.
+   - The render session added an assertion after the reproducer's run, and `verify` proved the edited test.
