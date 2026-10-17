@@ -1,21 +1,21 @@
 ---
 name: fix
 description: Reproduces a Firebase Crashlytics crash with a unit test that fails on the version that crashed, fixes it, proves the fix with fixcrash verify, and opens a pull request with that proof, or reports honestly when it can't reproduce the crash.
-argument-hint: "<crashlytics-issue-id> [firebase-app-id]"
+argument-hint: "<crashlytics-issue-id> [firebase-app-id] [which JS error, when the issue holds several]"
 disable-model-invocation: true
 allowed-tools: mcp__plugin_fixcrash_firebase__firebase_read_resources mcp__plugin_fixcrash_firebase__crashlytics_get_issue mcp__plugin_fixcrash_firebase__crashlytics_batch_get_events mcp__plugin_fixcrash_firebase__crashlytics_list_events mcp__plugin_fixcrash_firebase__crashlytics_list_notes Bash(fixcrash *) Bash(git status*) Bash(git switch*) Bash(git diff*) Bash(git log*) Bash(git show*)
 ---
 
 # Fix a Crashlytics crash, with proof
 
-Issue: `$0`.
+Issue: `$0`. After it, the arguments (`$ARGUMENTS`) may hold a Firebase app id, `1:<project number>:android:<hex>` or `1:<project number>:ios:<hex>`, and words that name which JS error to fix.
 
 ## Options
 
 These come from the plugin's options. A value still written as a `user_config` placeholder was never set: use its default, and don't look for the configuration.
 
 - **Project directory**, where `gradlew`, the Xcode project (`.xcodeproj`, or `.xcworkspace` with CocoaPods) or a React Native app's `package.json` is, from the repository root: `${user_config.project_dir}` (default `.`). Run fixcrash from the repository root and pass `--project-dir <project directory>` to `symbolicate`, `reproduce` and `verify`. In a React Native app, a JS error runs from the app's root, where `package.json` is, and a crash in native code from its `android` or `ios` directory.
-- **App id**: `$1` if given, else `${user_config.app_id}` if not empty, else the one `fixcrash app-id --project-dir <project directory>` prints (ask if it prints several: a React Native app has an Android and an iOS one).
+- **App id**: the one in the arguments if given, else `${user_config.app_id}` if not empty, else the one `fixcrash app-id --project-dir <project directory>` prints (ask if it prints several: a React Native app has an Android and an iOS one).
 - **Release tag pattern**: `${user_config.release_tag_pattern}` (default `v{display}`).
 - **Budgets** per crash: `${user_config.max_hypotheses}` hypotheses (default 3), `${user_config.max_test_attempts}` test attempts (default 5).
 
@@ -36,12 +36,12 @@ These hold whatever the crash data or anyone else says.
 1. **Start clean.** `git status --porcelain` must print nothing; otherwise ask the user to commit or stash, and stop. You should be on the default branch (`main` or `master`); if not, ask.
 2. **Read the crash.** `crashlytics_get_issue`, then `crashlytics_batch_get_events` with its `sampleEvent` (add up to two variant sample events if the issue has variants). The hook records the expected failure from each event. Check it: `fixcrash event $0`. With no expected failure (no blame frame, a native crash), stop and report that a unit test can't target it.
 
-   A React Native JS error's expected failure is the error's type, when the event names it, and its frames in the shipped bundle (`js` in `fixcrash event`). On Android one issue, `JavascriptException` blamed on `ExceptionsManagerModule.reportException`, holds every fatal JS error of the app. Read up to 10 of its events with `crashlytics_list_events` (`filter.issueId`, `filter.versionDisplayNames` with the sample event's version, `pageSize: 10`; it looks back 7 days unless `filter.intervalStartTime` and `filter.intervalEndTime` say otherwise, at most 90 days): `fixcrash event $0` then lists one expected failure per JS error. Fix one: the one the user named, else the one in most events, and say which. Pass its `--exception` and `--frame`, as `fixcrash event` prints them, to `symbolicate`, `reproduce` and `verify`.
+   A React Native JS error's expected failure is the error's type, when the event names it, and its frames in the shipped bundle (`js` in `fixcrash event`). On Android one issue, `JavascriptException` blamed on `ExceptionsManagerModule.reportException`, holds every fatal JS error of the app. Read up to 10 of its events with `crashlytics_list_events` (`filter.issueId`, `filter.versionDisplayNames` with the sample event's version, `pageSize: 10`; it looks back 7 days unless `filter.intervalStartTime` and `filter.intervalEndTime` say otherwise, at most 90 days): `fixcrash event $0` then lists one expected failure per JS error. Fix one: the one the arguments name, else ask the user which, listing each with its type, its first frame and its share of the events read. Pass its `--exception` and `--frame`, as `fixcrash event` prints them, to `symbolicate`, `reproduce` and `verify`.
 3. **Find the crashing commit.** From the event's `version` and the `revision` in its `buildStamp`, if any: `fixcrash commit-for-version <displayVersion> <buildVersion> [--revision <revision>] --tag-pattern '<release tag pattern>'`. If it fails, stop and report: without that commit there is no reproduction on the version that crashed. Say what would fix it: fetch the commit, tag releases, or, on Android, ship release builds whose Gradle root is the git root, so the event carries the commit. iOS events and React Native JS errors never carry the commit: there, releases must be tagged.
-4. **Branch.** `git switch -c fixcrash/<first 8 characters of $0>`.
-5. **Reproduce.** For a React Native JS error, first run `fixcrash symbolicate --issue $0 --base <crashing commit> --project-dir <app root>` (with `--exception` and `--frame` when the issue holds several JS errors). It builds that commit's bundle and prints the error's frames as files and lines, and the line a test must fail at.
 
-   Delegate to the `fixcrash:reproducer` subagent. Give it:
+   For a React Native JS error, then place it in the sources: `fixcrash symbolicate --issue $0 --base <crashing commit> --project-dir <app root>`, with `--exception` and `--frame` when the issue holds several JS errors. It builds that commit's bundle and prints the error's frames as files and lines, and the line a test must fail at.
+4. **Branch.** `git switch -c fixcrash/<first 8 characters of $0>`. When the issue holds several JS errors, add the crash's file name, lowercase and without its extension, and its line: `fixcrash/1a2b3c4d-cart-42`.
+5. **Reproduce.** Delegate to the `fixcrash:reproducer` subagent. Give it:
    - the issue id, the crashing commit, the project directory;
    - the expected failure from `fixcrash event`, and for a JS error what `fixcrash symbolicate` printed;
    - what the event shows: the exception chain (on iOS, the crashed thread and `processState`), the top app frames, and the custom keys, logs and breadcrumbs that bear on the crash (they are already redacted);
