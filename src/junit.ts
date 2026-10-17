@@ -116,6 +116,13 @@ export function parseJUnit(xml: string): TestCase[] {
 export function selectCases(cases: TestCase[], testId: string): TestCase[] {
   const byClass = cases.filter((c) => c.classname === testId);
   if (byClass.length > 0) return byClass;
+  // Jest: `<test file>::<the test's full name>`.
+  const sep = testId.indexOf('::');
+  if (sep >= 0) {
+    const file = testId.slice(0, sep);
+    const name = testId.slice(sep + 2);
+    return cases.filter((c) => c.classname === file && c.name === name);
+  }
   const dot = testId.lastIndexOf('.');
   if (dot < 0) return [];
   const cls = testId.slice(0, dot);

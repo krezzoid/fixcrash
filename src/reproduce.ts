@@ -9,7 +9,7 @@ import * as g from './git.ts';
 import { resolveExpectation, type ExpectationSource } from './record.ts';
 import { stateDir, type RunRecord } from './receipt.ts';
 import type { Runner } from './runner.ts';
-import { checkFails, lock, openProject, reportRun, resolveRef, resolveSite, runContext, short, VerifyError } from './run.ts';
+import { checkFails, checkRunnerFits, lock, openProject, reportRun, resolveRef, resolveSite, runContext, short, VerifyError } from './run.ts';
 import { findShortcuts, shortcutReason } from './shortcut.ts';
 import type { Expected } from './stack.ts';
 
@@ -106,6 +106,7 @@ export function reproduce(opts: ReproduceOptions): ReproduceResult {
     throw new VerifyError((e as Error).message);
   }
   const base = resolveRef(project, opts.base);
+  checkRunnerFits(project, resolved.expected);
 
   const testFiles = workingTestFiles(root, (p) => {
     const rel = project.toProject(p);

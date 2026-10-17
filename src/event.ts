@@ -6,7 +6,7 @@
 // prints `js-yaml.dump(events)`, where each event is a map from field name to
 // a string: nested objects are YAML-dumped first, stack traces are text.
 
-import type { CrashSite } from './stack.ts';
+import type { CrashSite, JsPosition, JsSite } from './stack.ts';
 
 /** One top-level field of a printed event, with the lines it spans. */
 interface Field {
@@ -164,6 +164,8 @@ export interface CrashEvent {
   /** Apple platforms: where the blame frame's crash is in the shipped binary. */
   site?: CrashSite;
   exceptions: EventThrowable[];
+  /** React Native: a JS error (ADR-0004). */
+  jsError?: JsError;
 }
 
 export interface Expectation {
@@ -171,6 +173,61 @@ export interface Expectation {
   frame: string;
   /** Apple platforms: where the crash is in the shipped binary, to recover the frames inlined into `frame`. */
   site?: CrashSite;
+  /** React Native: where the JS error is in the shipped bundle (ADR-0004). */
+  js?: JsSite;
+}
+
+/** A JS error in a React Native app, as Crashlytics has it. */
+export interface JsError {
+  /** The JS error's type, `TypeError`, when the event names it. */
+  type?: string;
+  /** What the event calls it otherwise: `JavaScriptError`, `UnhandledPromiseRejection`. */
+  kind: string;
+  /** Innermost first, in the bundle. */
+  frames: JsPosition[];
+}
+
+// A fatal JS error is React Native's own native crash, with the JS stack in its message:
+//   com.facebook.react.common.JavascriptException: TypeError: <message>, stack:   (Android)
+//   RCTFatalException: Unhandled JS Exception: TypeError: <message>, stack:        (iOS)
+// followed by `<function>@<line>:<column>` lines.
+const NATIVE_JS_CRASH = /^(?:com\.facebook\.react\.common\.JavascriptException: |RCTFatalException: Unhandled JS Exception: )([\s\S]*)$/;
+const JS_STACK_LINE = /^(.*?)@(?:.*:)?(\d+):(\d+)$/;
+// React Native Firebase's report: io.invertase.firebase.crashlytics.JavaScriptError (Android),
+// JavaScriptError (iOS), with `at <function> (address at <bundle>:<line>:<column>)` frames.
+const RNFB_JS_ERROR = /^(?:io\.invertase\.firebase\.crashlytics\.)?(JavaScriptError|UnhandledPromiseRejection)(?::|$)/;
+// iOS appends the frame's line once more: `main.jsbundle:1:484854:1`.
+const RNFB_FRAME = /^at (\S+) \((?:address at )?(.+?):(\d+):(\d+)(?::\d+)?\)$/;
+const NOT_IN_BUNDLE = /^(?:\(native\)|InternalBytecode\.js|<anonymous>)$/;
+
+/** The JS error in an event's `exceptions` text, if it is one. */
+export function parseJsError(text: string): JsError | undefined {
+  const lines = text.split('\n').map((l) => l.trim());
+  const first = lines[0] ?? '';
+  const native = first.match(NATIVE_JS_CRASH);
+  if (native) {
+    const type = native[1]!.match(/^([A-Za-z_$][\w$]*): /)?.[1];
+    const start = lines.findIndex((l) => /, stack:$/.test(l));
+    const frames: JsPosition[] = [];
+    for (const l of start < 0 ? [] : lines.slice(start + 1)) {
+      const m = l.match(JS_STACK_LINE);
+      if (!m) {
+        if (frames.length > 0) break;
+        continue;
+      }
+      frames.push({ fn: m[1]!, line: Number(m[2]), column: Number(m[3]) });
+    }
+    return { ...(type ? { type } : {}), kind: first.startsWith('RCT') ? 'RCTFatalException' : 'JavascriptException', frames };
+  }
+  const rnfb = first.match(RNFB_JS_ERROR);
+  if (!rnfb) return undefined;
+  const frames: JsPosition[] = [];
+  for (const l of lines.slice(1)) {
+    const m = l.match(RNFB_FRAME);
+    if (!m || NOT_IN_BUNDLE.test(m[2]!)) continue;
+    frames.push({ fn: m[1]!.replace(/^\./, ''), line: Number(m[3]), column: Number(m[4]) });
+  }
+  return { kind: rnfb[1]!, frames };
 }
 
 const APPLE_PLATFORMS = new Set(['IOS', 'MACOS', 'TVOS']);
@@ -187,6 +244,8 @@ export function toCrashEvent(fields: Field[]): CrashEvent | undefined {
     errorType: issue.errorType ?? '',
     exceptions: parseEventExceptions(get('exceptions') ?? ''),
   };
+  const jsError = parseJsError(get('exceptions') ?? '');
+  if (jsError) event.jsError = jsError;
   const platform = (get('platform') ?? '').trim();
   if (platform) event.platform = platform;
   const mach = APPLE_PLATFORMS.has(platform) ? (issue.subtitle ?? '').match(MACH_EXCEPTION)?.[1] : undefined;
@@ -222,6 +281,7 @@ export function toCrashEvent(fields: Field[]): CrashEvent | undefined {
  * frames that the optimizer inlined into the blame frame (ADR-0002).
  */
 export function expectationOf(event: CrashEvent): Expectation | undefined {
+  if (event.jsError) return jsExpectationOf(event, event.jsError);
   const frame = event.blameFrame?.symbol;
   if (!frame) return undefined;
   if (event.exceptions.length === 0) {
@@ -231,6 +291,23 @@ export function expectationOf(event: CrashEvent): Expectation | undefined {
   const holding = event.exceptions.filter((t) => t.frames.some((f) => f.symbol === frame));
   const thrown = holding[holding.length - 1] ?? event.exceptions[event.exceptions.length - 1]!;
   return { exception: thrown.type, frame };
+}
+
+const JS_PLATFORMS: Record<string, JsSite['platform']> = { ANDROID: 'android', IOS: 'ios' };
+
+/**
+ * A JS error's expected failure (ADR-0004): its type when the event names it,
+ * and its frames in the bundle, which only the crashing commit's source map
+ * places in the sources. Until then, the frame is the first one as the event
+ * prints it, `parseProfile@1:485277`.
+ */
+function jsExpectationOf(event: CrashEvent, error: JsError): Expectation | undefined {
+  const platform = JS_PLATFORMS[event.platform ?? ''];
+  const top = error.frames[0];
+  if (!platform || !top) return undefined;
+  const js: JsSite = { platform, typed: error.type !== undefined, frames: error.frames };
+  if (event.version) js.version = event.version;
+  return { exception: error.type ?? error.kind, frame: `${top.fn}@${top.line}:${top.column}`, js };
 }
 
 // --- Redaction ---------------------------------------------------------------

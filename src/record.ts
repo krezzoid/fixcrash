@@ -86,9 +86,10 @@ export function resolveExpectation(
   const record = readRecord(gitCommonDir, issue);
   const recorded = record?.expectations ?? [];
   const list = recorded.map((e) => `${e.exception} at ${e.frame}`).join('; ');
-  // The crash site comes from the event only, never from the caller.
-  const fromEvent = ({ exception, frame, site }: RecordedExpectation): Expectation =>
-    site ? { exception, frame, site } : { exception, frame };
+  // The crash site and the JS positions come from the event only, never from the caller.
+  const fromEvent = ({ exception, frame, site, js }: RecordedExpectation): Expectation => ({
+    exception, frame, ...(site ? { site } : {}), ...(js ? { js } : {}),
+  });
   if (given) {
     if (recorded.length === 0) return { expected: { exception: given.exception, frame: given.frame }, source: 'arguments' };
     const match = recorded.find((e) => e.exception === given.exception && e.frame === given.frame);

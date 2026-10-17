@@ -1,0 +1,140 @@
+- name: |
+    projects/1/apps/1:1:android:rn/events/RN0001_1
+  platform: |
+    ANDROID
+  issue: |
+    id: 0000rn01
+    title: com.facebook.react.modules.core.ExceptionsManagerModule.reportException
+    subtitle: |-
+      com.facebook.react.common.JavascriptException - TypeError: Cannot read property 'label' of undefined
+
+      This error is located at:
+          at TagList (address at index.android.bundle:1:487201)
+    errorType: FATAL
+  version: |
+    displayVersion: '1.0'
+    buildVersion: '1'
+    displayName: 1.0 (1)
+  blameFrame: |
+    line: '52'
+    file: ExceptionsManagerModule.kt
+    symbol: com.facebook.react.modules.core.ExceptionsManagerModule.reportException
+    offset: '52'
+    library: com.example.app
+    owner: THIRD_PARTY
+    blamed: true
+  exceptions: |-
+    com.facebook.react.common.JavascriptException: TypeError: Cannot read property 'label' of undefined
+
+    This error is located at:
+        at TagList (address at index.android.bundle:1:487201)
+        at RCTView (<anonymous>)
+        at App (address at index.android.bundle:1:458299), stack:
+    anonymous@1:665004
+    TagList@1:487346
+    renderWithHooks@1:267352
+
+    at com.facebook.react.modules.core.ExceptionsManagerModule.reportException (ExceptionsManagerModule.kt:52)
+    at com.facebook.jni.NativeRunnable.run (NativeRunnable.java)
+  buildStamp: |
+    |
+      generate_error_reason: NO_SUPPORTED_VCS_FOUND
+- name: |
+    projects/1/apps/1:1:android:rn/events/RN0002_1
+  platform: |
+    ANDROID
+  issue: |
+    id: 0000rn02
+    title: address at index.android.bundle:1:698961 - .?anon_0_
+    subtitle: io.invertase.firebase.crashlytics.JavaScriptError - Cannot read property 'title' of undefined
+    errorType: NON_FATAL
+  version: |
+    displayVersion: '1.0'
+    buildVersion: '1'
+    displayName: 1.0 (1)
+  blameFrame: |
+    file: address at index.android.bundle:1:698961
+    symbol: .?anon_0_
+    library: com.example.app
+    owner: THIRD_PARTY
+    blamed: true
+  exceptions: |-
+    io.invertase.firebase.crashlytics.JavaScriptError: Cannot read property 'title' of undefined
+    at .?anon_0_ (address at index.android.bundle:1:698961)
+    at .next ((native):0:0)
+    at .asyncGeneratorStep (address at index.android.bundle:1:432790)
+    at .tryCallOne (address at InternalBytecode.js:1:27784)
+- name: |
+    projects/1/apps/1:1:ios:rn/events/RN0003_2
+  platform: |
+    IOS
+  issue: |
+    id: 0000rn03
+    title: '[CoreFoundation]'
+    subtitle: >
+      RCTFatalException: Unhandled JS Exception: TypeError: Cannot read property 'url' of undefined - ExceptionsManager.reportException raised an exception: Unhandled JS Exception: TypeError: Cannot read
+      property 'url' of undefined, stack:
+
+      parseProfile@1:484854
+
+      anonymous@1:706303
+    errorType: FATAL
+  device: |
+    model: iOS Simulator (iPhone)
+  version: |
+    displayVersion: '1.0'
+    buildVersion: '1'
+    displayName: 1.0 (1)
+  blameFrame: |
+    address: '1302296'
+    library: CoreFoundation
+    owner: DEVELOPER
+    blamed: true
+  exceptions: >-
+    RCTFatalException: Unhandled JS Exception: TypeError: Cannot read property 'url' of undefined: ExceptionsManager.reportException raised an exception: Unhandled JS Exception: TypeError: Cannot read
+    property 'url' of undefined, stack:
+
+    parseProfile@1:484854
+
+    anonymous@1:706303
+
+
+    at
+
+    at
+- name: |
+    projects/1/apps/1:1:ios:rn/events/RN0004_1
+  platform: |
+    IOS
+  issue: |
+    id: 0000rn04
+    title: >-
+      address at
+      /private/var/containers/Bundle/Application/APP/App.app/main.jsbundle:1:484854
+      - parseProfile
+    subtitle: JavaScriptError - Cannot read property 'url' of undefined
+    errorType: NON_FATAL
+  version: |
+    displayVersion: '1.0'
+    buildVersion: '1'
+    displayName: 1.0 (1)
+  blameFrame: |
+    line: '1'
+    file: >-
+      address at
+      /private/var/containers/Bundle/Application/APP/App.app/main.jsbundle:1:484854
+    symbol: parseProfile
+    offset: '1'
+    owner: DEVELOPER
+    blamed: true
+  exceptions: >-
+    JavaScriptError: Cannot read property 'url' of undefined
+
+    at parseProfile (address at
+    /private/var/containers/Bundle/Application/APP/App.app/main.jsbundle:1:484854:1)
+
+    at toISOString (address at
+    (native):0:0)
+
+    at anonymous (address at
+    /private/var/containers/Bundle/Application/APP/App.app/main.jsbundle:1:706303:1)

@@ -1,4 +1,4 @@
-// bin/fixcrash: verify | reproduce | commit-for-version | receipt | pr-body | event | app-id
+// bin/fixcrash: verify | reproduce | symbolicate | commit-for-version | receipt | pr-body | event | app-id
 // Exit codes: 0 done, 1 not verified / not reproduced / not found,
 // 2 bad input or environment, 3 reproduce budget spent.
 
@@ -10,6 +10,7 @@ import { prBody } from './prbody.ts';
 import { checkReceipt } from './receipt.ts';
 import { readRecord } from './record.ts';
 import { reproduce } from './reproduce.ts';
+import { symbolicateIssue } from './symbolicate.ts';
 import type { Expected } from './stack.ts';
 import { verify, VerifyError } from './verify.ts';
 import { commitForVersion, DEFAULT_TAG_PATTERNS, VersionError } from './version.ts';
@@ -32,6 +33,12 @@ const USAGE = `usage:
   Both take the expected failure from the issue's Crashlytics event, as the
   fixcrash hook recorded it. --exception and --frame pick one when the issue
   has several, or stand in when none is recorded (a PR then needs a re-verify).
+  A React Native JS error runs with Jest, from the app's root: --test is
+  <test file>::<the test's full name>, and its failure needs its recorded event.
+
+  fixcrash symbolicate --issue <id> --base <commit> [--exception <type> --frame <frame>] [--project-dir <dir>]
+      Where a recorded React Native JS error is in the app's sources at --base:
+      builds that commit's bundle and source map, and maps the event's frames.
 
   fixcrash commit-for-version <display> <build> [--revision <sha>] [--tag-pattern <pattern>]...
       The commit a build was made from: --revision (the event's build stamp), or
@@ -119,6 +126,24 @@ function cmdReproduce(args: string[]): number {
   return { reproduced: 0, 'not-reproduced': 1, 'budget-spent': 3 }[result.status];
 }
 
+function cmdSymbolicate(args: string[]): number {
+  const { values } = parseArgs({ args, options: RUN_OPTIONS, strict: true });
+  required(values, ['issue', 'base']);
+  const site = symbolicateIssue({
+    cwd: process.cwd(),
+    issue: values.issue!,
+    base: values.base!,
+    expected: expectedFrom(values),
+    projectDir: values['project-dir'],
+    timeoutMs: positive(values.timeout, 'timeout', 30) * 60_000,
+    log: (line) => console.log(line),
+  });
+  for (const line of site.chain ?? []) console.log(`  at ${line}`);
+  console.log(`crash site: ${site.note}`);
+  console.log(`expect ${site.expected.exception} at ${site.expected.frame}`);
+  return 0;
+}
+
 function cmdCommitForVersion(args: string[]): number {
   const { values, positionals } = parseArgs({
     args,
@@ -197,6 +222,8 @@ export function main(argv: string[]): number {
         return cmdVerify(rest);
       case 'reproduce':
         return cmdReproduce(rest);
+      case 'symbolicate':
+        return cmdSymbolicate(rest);
       case 'commit-for-version':
         return cmdCommitForVersion(rest);
       case 'receipt':

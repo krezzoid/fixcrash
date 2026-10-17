@@ -13,7 +13,8 @@ import { resolveExpectation } from './record.ts';
 import { RECEIPT_SCHEMA, receiptPath, writeReceipt, type Receipt, type RunRecord } from './receipt.ts';
 import type { Runner } from './runner.ts';
 import {
-  checkFails, checkPasses, lock, openProject, reportRun, resolveRef, resolveSite, runContext, short, VerifyError,
+  checkFails, checkPasses, checkRunnerFits, jsExpectedAt, lock, openProject, reportRun, resolveRef, resolveSite, runContext, short,
+  VerifyError,
 } from './run.ts';
 import { findShortcuts, shortcutReason } from './shortcut.ts';
 import type { Expected } from './stack.ts';
@@ -69,6 +70,7 @@ export function verify(opts: VerifyOptions): VerifyResult {
     throw new VerifyError((e as Error).message);
   }
   const { expected, source: expectedSource } = resolved;
+  checkRunnerFits(project, resolved.expected);
 
   const head = resolveRef(project, 'HEAD');
   const base = resolveRef(project, opts.base);
@@ -142,7 +144,9 @@ export function verify(opts: VerifyOptions): VerifyResult {
     if (!b.ok) return done(b.reason);
 
     if (from !== base) {
-      const f = checkFails(ctx, 'from', from);
+      const atFrom = jsExpectedAt(project, base, from, ctx.expected);
+      if (atFrom.note) log(`from ${short(from)}: ${atFrom.note}`);
+      const f = checkFails({ ...ctx, expected: atFrom.expected }, 'from', from);
       runs.push(f);
       reportRun(log, 'from (fix parent)', f);
       if (!f.ok) {

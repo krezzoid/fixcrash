@@ -26,7 +26,36 @@ export interface Expected {
   frame: string;
   /** Apple platforms: where the crash is in the shipped binary (ADR-0002). */
   site?: CrashSite;
+  /** React Native: where a JS error is in the shipped bundle, and in the sources once symbolicated (ADR-0004). */
+  js?: JsSite;
 }
+
+/** A frame of a JS stack in a Hermes bundle: the function's name and a position, on line 1 for bytecode. */
+export interface JsPosition {
+  fn: string;
+  line: number;
+  column: number;
+}
+
+/** React Native (ADR-0004): a JS error's place in the shipped bundle, and in the app's sources. */
+export interface JsSite {
+  /** The bundle the positions are in: each platform has its own. */
+  platform: 'android' | 'ios';
+  /** The event names the JS error's type (`exception`); React Native Firebase's non-fatals don't. */
+  typed: boolean;
+  /** The event's JS frames, innermost first, built-ins and Hermes internals left out. */
+  frames: JsPosition[];
+  /** The version the positions belong to. */
+  version?: { display: string; build: string };
+  /**
+   * The first frame in the app's own sources, after symbolication at the crashing commit.
+   * No line: any line of the file, at a later commit where the crash's line changed.
+   */
+  source?: { file: string; line?: number; fn?: string };
+}
+
+/** `fn@1:485277`, the form React Native prints a JS stack in. */
+export const formatJsPosition = (p: JsPosition): string => `${p.fn}@${p.line}:${p.column}`;
 
 /** Apple platforms: a crash's place in the shipped binary, to recover the frames inlined into the blame frame. */
 export interface CrashSite {
@@ -188,6 +217,47 @@ export function matchFailure(
     const fromTest = t.frames.slice(0, i).find(isTestFrame);
     if (fromTest) {
       reason = `${expected.exception} is thrown from test code at ${formatFrame(fromTest)}, above ${expected.frame}`;
+      continue;
+    }
+    return { ok: true, throwable: t, frameIndex: i };
+  }
+  return { ok: false, reason };
+}
+
+/**
+ * ADR-0004: the check for a React Native JS error. The type is compared when
+ * the event names it. The frame is the crash's top app frame after
+ * symbolication, compared by file and line: Hermes and Jest name functions
+ * differently, and neither reliably.
+ */
+export function matchJsFailure(
+  chain: Throwable[],
+  expected: Expected,
+  isTestFrame: (frame: Frame) => boolean,
+): MatchResult {
+  const source = expected.js?.source;
+  if (!source) return { ok: false, reason: 'the crash was not symbolicated' };
+  const causal = chain.filter((t) => t.relation !== 'suppressed');
+  if (causal.length === 0) return { ok: false, reason: 'no stack trace in the failure' };
+  const candidates = expected.js!.typed ? causal.filter((t) => t.type === expected.exception) : causal;
+  if (candidates.length === 0) {
+    return { ok: false, reason: `failed with ${causal.map((t) => t.type).join(' <- ')}, not ${expected.exception}` };
+  }
+  const where = source.line === undefined ? source.file : `${source.file}:${source.line}`;
+  let reason = '';
+  for (const t of candidates) {
+    const i = t.frames.findIndex((f) => f.file === source.file && (source.line === undefined || f.line === source.line));
+    if (i < 0) {
+      reason = `${t.type} does not pass through ${where}`;
+      // Jest's `.resolves` and `.rejects` fail with the matcher's error: the rejection's stack is lost.
+      if (/Received promise (?:rejected instead of resolved|resolved instead of rejected)/.test(t.message)) {
+        reason += ". Jest's .resolves and .rejects replace the rejection's stack with the matcher's: await the call itself, so its error fails the test";
+      }
+      continue;
+    }
+    const fromTest = t.frames.slice(0, i).find(isTestFrame);
+    if (fromTest) {
+      reason = `${t.type} is thrown from test code at ${formatFrame(fromTest)}, above ${where}`;
       continue;
     }
     return { ok: true, throwable: t, frameIndex: i };

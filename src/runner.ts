@@ -41,6 +41,8 @@ export interface Runner {
   clean(projectDir: string): void;
   /** The test cases the run produced. Throws when a result can't be read. */
   results(projectDir: string, dirs: RunDirs): TestCase[];
+  /** A test case's name in reports; default `<classname>.<name>`. */
+  caseName?(c: TestCase): string;
   /**
    * The binaries test code is built into, for crash logs that name each frame's binary.
    * Without it, test frames are told by their source file.

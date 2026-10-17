@@ -56,3 +56,25 @@ test('says what the release build showed at an iOS crash site', () => {
   assert.match(prBody(ios), /^- Crash site, from a release build of the crashing version: the crash is in ProfileParser\.parse\(_:\)\(ProfileParser\.swift:10\), inlined into ProfileViewController\.showProfile\(\)\.$/m);
   assert.doesNotMatch(prBody(receipt), /Crash site/);
 });
+
+test('names a JS error by its type and source position, and says when the event names no type', () => {
+  const js: Receipt = {
+    ...receipt,
+    test: '__tests__/profile.test.ts::parses a profile without an avatar',
+    expected: {
+      exception: 'JavaScriptError', frame: 'src/inbox.ts:14',
+      js: { platform: 'android', typed: false, frames: [{ fn: '?anon_0_', line: 1, column: 698961 }], source: { file: 'src/inbox.ts', line: 14, fn: 'loadHeadline' } },
+    },
+    runner: 'jest',
+    runs: [run('base', sha('a'), {
+      target: [{ name: '__tests__/profile.test.ts::parses a profile without an avatar', status: 'failed', exception: 'TypeError', frame: 'src/inbox.ts:14' }],
+    }), run('head', sha('c'), { target: [{ name: '__tests__/profile.test.ts::parses a profile without an avatar', status: 'passed' }] })],
+    crashSite: { note: "version 1.0 (1)'s android bundle places the crash in loadHeadline at src/inbox.ts:14" },
+  };
+  const body = prBody(js);
+
+  assert.match(body, /^Fixes Crashlytics issue `0000c0de`: `JavaScriptError` at `src\/inbox.ts:14`\./);
+  assert.match(body, /`__tests__\/profile\.test\.ts::parses a profile without an avatar` fails as the crash did: `TypeError` at `src\/inbox\.ts:14`/);
+  assert.match(body, /JS error type, not named by the event, and the top app frame/);
+  assert.match(body, /^- Crash site, from the crashing version's bundle and source map: version 1\.0 \(1\)'s android bundle places the crash in loadHeadline at src\/inbox\.ts:14\.$/m);
+});

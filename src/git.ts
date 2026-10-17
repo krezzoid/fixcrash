@@ -106,6 +106,30 @@ export function addedLines(cwd: string, from: string, to: string | undefined, pa
   return lines;
 }
 
+/**
+ * Where line `line` of `path` at `from` is at `to`: moved by the lines added and
+ * removed above it. Undefined when the line itself changed, or the file is gone.
+ */
+export function movedLine(cwd: string, from: string, to: string, path: string, line: number): number | undefined {
+  if (tryGit(cwd, ['cat-file', '-e', `${to}:${path}`]) === undefined) return undefined;
+  const out = gitRaw(cwd, ['diff', '-U0', '--no-color', '--no-ext-diff', '--no-renames', from, to, '--', path]);
+  let moved = line;
+  for (const m of out.matchAll(/^@@ -(\d+)(?:,(\d+))? \+\d+(?:,(\d+))? @@/gm)) {
+    const start = Number(m[1]);
+    const removed = m[2] === undefined ? 1 : Number(m[2]);
+    const added = m[3] === undefined ? 1 : Number(m[3]);
+    // `-start,0`: lines added after line `start`.
+    if (removed === 0) {
+      if (line > start) moved += added;
+    } else if (line >= start + removed) {
+      moved += added - removed;
+    } else if (line >= start) {
+      return undefined;
+    }
+  }
+  return moved;
+}
+
 /** The default branch: the remote's HEAD, else a local `main` or `master`. */
 export function defaultBranch(cwd: string): string | undefined {
   const remote = tryGit(cwd, ['symbolic-ref', '--quiet', '--short', 'refs/remotes/origin/HEAD']);

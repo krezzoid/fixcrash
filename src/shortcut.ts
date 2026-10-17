@@ -33,6 +33,20 @@ const RULES: { what: string; pattern: RegExp }[] = [
   // A SwiftUI button's action can be run from a unit test once these turn accessibility on;
   // they are private, and stay on in the simulator for every later run (ADR-0003).
   { what: 'turns accessibility on through private libAccessibility functions', pattern: /\b_AXS\w+|\blibAccessibility\.dylib\b/ },
+  // JavaScript and TypeScript (ADR-0004).
+  { what: 'builds an object from its prototype without its constructor', pattern: /\bObject\.create\s*\(\s*[\w$.]+\.prototype\b/ },
+  { what: "opens a module's internals (rewire)", pattern: /\b__(?:get|set|Rewire|ResetDependency|GetDependency)__\s*\(|['"](?:babel-plugin-)?rewire['"]/ },
+  // A test that swaps a built-in reaches crashes that only another engine has (Hermes's Date
+  // parser, say). Time and randomness stay the test's to control: Date.now, Math.random.
+  {
+    what: 'swaps a global for the test\'s own',
+    pattern: /\bjest\.spyOn\(\s*(?:global|globalThis|window)\s*,\s*['"`][A-Z]\w*['"`]|\b(?:global|globalThis|window)\.[A-Z]\w*\s*=(?!=)/,
+  },
+  { what: 'replaces a method on a prototype', pattern: /\b[A-Z][\w$]*(?:\.[A-Z][\w$]*)?\.prototype\.[\w$]+\s*=(?!=)/ },
+  {
+    what: "swaps a built-in's or a prototype's method for the test's own",
+    pattern: /\bjest\.spyOn\(\s*(?:(?:Date|Intl(?:\.\w+)?|Number|String|Array|Object|JSON|Promise|RegExp|Symbol|Reflect|Math)\s*,\s*['"`](?!now['"`]|random['"`])\w+['"`]|[A-Z][\w$]*(?:\.[A-Z][\w$]*)?\.prototype\s*,[^)]*)\)\s*\.mock(?:Implementation|ReturnValue|ResolvedValue|RejectedValue)/,
+  },
 ];
 
 /** The source's lines with comments blanked out, so line numbers still match. */
@@ -63,5 +77,5 @@ export function shortcutReason(found: Shortcut[]): string {
     .join('; ');
   return `the test reaches the crash from a state the app is never in (${where}). ` +
     'Drive the code through its own entry points; if nothing else reaches the crashing line, ' +
-    'report it as not reproduced and say what would (for example Robolectric, or a UI test)';
+    "report it as not reproduced and say what would (for example Robolectric, a UI test, or a test run on the app's JS engine)";
 }

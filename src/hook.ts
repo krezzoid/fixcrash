@@ -62,7 +62,9 @@ export function isTestPath(path: string): boolean {
 }
 
 const STATE_PATH = /\.git[\\/]+fixcrash(?=$|[\\/\s'"])/;
-const STATE_SUBDIR = /fixcrash[\\/]+(receipts|events|attempts|sessions|lock)\b/;
+const STATE_SUBDIR = /fixcrash[\\/]+(receipts|events|attempts|sessions|lock|worktrees)\b/;
+// A JS project's worktree, in the user's cache directory (ADR-0005).
+const WORKTREES = /[\\/]fixcrash[\\/]+worktrees(?=$|[\\/])/;
 
 /** A shell command that reaches into fixcrash's state, other than reading logs. */
 export function touchesState(command: string): boolean {
@@ -134,6 +136,7 @@ function preToolUse(input: HookInput): HookOutput {
   if (FILE_TOOLS.has(tool)) {
     const path = slashes(String(ti.file_path ?? ti.notebook_path ?? ''));
     if (STATE_PATH.test(path)) return deny('.git/fixcrash holds receipts and recorded crash events: only the fixcrash CLI writes there');
+    if (WORKTREES.test(path)) return deny("fixcrash's worktrees are where reproduce and verify run the tests: only the fixcrash CLI writes there");
     if (input.agent_type === REPRODUCER && !isTestPath(path)) {
       return deny(`the reproducer writes tests only, and ${path} is not a test source. Reproduce the crash with a test; the fix comes later, in the main session.`);
     }
@@ -186,9 +189,11 @@ function postCrashlytics(input: HookInput): HookOutput {
           const event = toCrashEvent(fields);
           if (!event) continue;
           const expected = recordEvent(common, event);
-          notes.push(expected
-            ? `Recorded the expected failure for issue ${event.issueId}: ${expected.exception} at ${expected.frame}. fixcrash reproduce and verify check against it.`
-            : `Issue ${event.issueId}: this event has no blame frame or exceptions, so there is no expected failure to reproduce.`);
+          notes.push(!expected
+            ? `Issue ${event.issueId}: this event has no blame frame or exceptions, so there is no expected failure to reproduce.`
+            : expected.js
+              ? `Recorded the expected failure for issue ${event.issueId}: a JS error, ${expected.exception} at ${expected.frame} in the ${expected.js.platform} bundle${expected.js.version ? ` of version ${expected.js.version.display} (${expected.js.version.build})` : ''}. \`fixcrash symbolicate --issue ${event.issueId} --base <that version's commit>\` shows where it is in the sources; reproduce and verify check against it, with Jest from the app's root.`
+              : `Recorded the expected failure for issue ${event.issueId}: ${expected.exception} at ${expected.frame}. fixcrash reproduce and verify check against it.`);
         }
       }
       if (input.session_id) markSession(common, input.session_id);
@@ -212,9 +217,9 @@ function sensitive(input: HookInput): boolean {
   if (MCP_CREATE_PR.test(tool)) return true;
   if (SHELL_TOOLS.has(tool)) {
     const c = String(ti.command ?? '');
-    return /\bpr\s+create\b|pull-request|\bpulls\b|\.git[\\/]+fixcrash/.test(c);
+    return /\bpr\s+create\b|pull-request|\bpulls\b|\.git[\\/]+fixcrash|fixcrash[\\/]+worktrees/.test(c);
   }
-  if (FILE_TOOLS.has(tool)) return /\.git[\\/]+fixcrash/.test(String(ti.file_path ?? ti.notebook_path ?? ''));
+  if (FILE_TOOLS.has(tool)) return /\.git[\\/]+fixcrash|fixcrash[\\/]+worktrees/.test(String(ti.file_path ?? ti.notebook_path ?? ''));
   return false;
 }
 

@@ -33,6 +33,7 @@
    - has a frame at the expected path and line;
    - has no frame from a test file above it.
 4. When the event has no type (a non-fatal), the type isn't compared, and the report and the PR body say so.
+5. *(Added in step 6.5.)* At the fix's parent, where `verify` runs the test again, the expected line is where the crashing commit's line moved to, through `git diff` of the file. If that line itself changed in between, any line of the file will do there. The crashing commit's run always checks the exact line.
 
 Each JS event is its own expected failure: a run names the event it reproduces, since an issue may hold several crashes. On iOS the native crash and its non-fatal copy name the same frame.
 
@@ -91,8 +92,10 @@ A is the existing rule and fails every correct JS test. C trades a structural ch
 
 ## Action items
 
-1. [ ] The hook records JS positions, the type when present, and the platform, per event; `fixcrash event` shows them.
-2. [ ] `fixcrash symbolicate`: build the crashing commit's bundle and map per platform, cache them, run `metro-symbolicate` from the app's `node_modules`.
-3. [ ] The Jest runner: failures from `--json`, V8 stack frames, the match by type, path and line, the test-file rule.
-4. [ ] The built-in swap shortcut rule.
-5. [ ] Unit tests with fixtures written from the testbed's events, maps and Jest output, with synthetic values.
+Done in step 6.5:
+
+1. [x] The hook records JS positions, the type when present, and the platform, per event; `fixcrash event` shows them.
+2. [x] `fixcrash symbolicate`: build the crashing commit's bundle and map per platform, cache them, run `metro-symbolicate` from the app's `node_modules`.
+3. [x] The Jest runner: failures from `--json`, V8 stack frames, the match by type, path and line, the test-file rule.
+4. [x] The built-in swap shortcut rule.
+5. [x] Unit tests with fixtures written from the testbed's events, maps and Jest output, with synthetic values.

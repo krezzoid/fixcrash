@@ -6,8 +6,9 @@ import type { Receipt, RunRecord } from './receipt.ts';
 
 const short = (sha: string) => sha.slice(0, 12);
 
-/** `com.example.FooTest.bar` -> `FooTest.bar`. */
+/** `com.example.FooTest.bar` -> `FooTest.bar`. A Jest test (`<file>::<name>`) and a source position stay as they are. */
 function shortName(name: string): string {
+  if (name.includes('::') || name.includes('/')) return name;
   const parts = name.split('.');
   const cls = parts.findIndex((p) => /^[A-Z]/.test(p));
   return cls >= 0 ? parts.slice(cls).join('.') : name;
@@ -47,8 +48,14 @@ export function prBody(r: Receipt): string {
     '',
     `- Test: ${r.testFiles.map((f) => `\`${f}\``).join(', ')}`,
     `- Fix: ${r.fixFiles.map((f) => `\`${f}\``).join(', ')}`,
-    `- Expected failure (exception type and blame frame): from ${source}.`,
-    ...(r.crashSite ? [`- Crash site, from a release build of the crashing version: ${r.crashSite.note}.`] : []),
+    r.expected.js
+      ? `- Expected failure (JS error type${r.expected.js.typed ? '' : ', not named by the event'}, and the top app frame): from ${source}.`
+      : `- Expected failure (exception type and blame frame): from ${source}.`,
+    ...(r.crashSite
+      ? [r.expected.js
+        ? `- Crash site, from the crashing version's bundle and source map: ${r.crashSite.note}.`
+        : `- Crash site, from a release build of the crashing version: ${r.crashSite.note}.`]
+      : []),
     '',
     `<sub>fixcrash ${r.fixcrash}, receipt for \`${r.head}\`.</sub>`,
     '',

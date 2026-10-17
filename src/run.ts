@@ -1,18 +1,23 @@
 // The engine under `verify` and `reproduce`: runs a test command at a commit
-// in fixcrash's own worktree (.git/fixcrash/worktree), reads the test results
-// (JUnit reports, Xcode result bundles), and checks failures against the crash.
+// in fixcrash's own worktree (.git/fixcrash/worktree; a JS project's is in the
+// user's cache directory), reads the test results (JUnit reports, Xcode result
+// bundles, Jest's JSON), and checks failures against the crash.
 
 import { spawnSync } from 'node:child_process';
 import {
   closeSync, copyFileSync, existsSync, mkdirSync, openSync, readFileSync, rmSync, writeFileSync,
 } from 'node:fs';
+import { createHash } from 'node:crypto';
+import { homedir } from 'node:os';
 import { basename, dirname, join, resolve as resolvePath } from 'node:path';
 import * as g from './git.ts';
 import { selectCases, type TestCase, type TestFailure } from './junit.ts';
 import { stateDir, type RunRecord, type TargetResult } from './receipt.ts';
 import { findFiles, gradle, type RunDirs, type Runner, type Step } from './runner.ts';
+import { bundleMap, bundleSteps, isJestProject, jest, symbolicate } from './jest.ts';
 import {
-  formatFrame, matchFailure, parseJvmStack, sameSymbol, testFrameDetector, type Expected, type Frame, type Throwable,
+  formatFrame, formatJsPosition, matchFailure, matchJsFailure, parseJvmStack, sameSymbol, testFrameDetector,
+  type Expected, type Frame, type Throwable,
 } from './stack.ts';
 import { findXcodeContainer, xcodebuild } from './xcode.ts';
 
@@ -25,6 +30,7 @@ export const short = (sha: string) => sha.slice(0, 12);
 export function detectRunner(projectDir: string): Runner | undefined {
   if (existsSync(join(projectDir, 'gradlew'))) return gradle;
   if (findXcodeContainer(projectDir)) return xcodebuild(projectDir);
+  if (isJestProject(projectDir)) return jest;
   return undefined;
 }
 
@@ -61,7 +67,7 @@ export function openProject(cwd: string, projectDirOption: string | undefined, r
   }
   const runner = runnerOption ?? detectRunner(join(root, projectDir));
   if (!runner) {
-    throw new VerifyError(`no supported build tool in ${projectDir || '.'} (looked for: gradlew, *.xcworkspace, *.xcodeproj). Pass --project-dir if the app is in a subdirectory`);
+    throw new VerifyError(`no supported build tool in ${projectDir || '.'} (looked for: gradlew, *.xcworkspace, *.xcodeproj, a package.json with Jest). Pass --project-dir if the app is in a subdirectory`);
   }
   const env = { ...process.env };
   const extra = runner.environment(env);
@@ -71,6 +77,17 @@ export function openProject(cwd: string, projectDirOption: string | undefined, r
     return p.startsWith(`${projectDir}/`) ? p.slice(projectDir.length + 1) : undefined;
   };
   return { root, common: g.commonDir(cwd), projectDir, runner, env, envNote: extra?.note, toProject };
+}
+
+/** A JS error is reproduced with Jest at the app's root, a native crash with the native runners (ADR-0004). */
+export function checkRunnerFits(project: Project, expected: Expected): void {
+  const where = project.projectDir || '.';
+  if (expected.js && project.runner.name !== 'jest') {
+    throw new VerifyError(`the crash is a JS error (${expected.exception} at ${expected.frame}): reproduce it with Jest, from the React Native app's root (where package.json is), not ${where}`);
+  }
+  if (!expected.js && project.runner.name === 'jest') {
+    throw new VerifyError(`${expected.exception} at ${expected.frame} is no recorded JS error. A JS error's expected failure comes only from its event, which has its positions in the bundle: fetch the event with crashlytics_batch_get_events. A native crash is reproduced in the native project: pass --project-dir android or ios`);
+  }
 }
 
 export function resolveRef(project: Project, ref: string): string {
@@ -105,7 +122,19 @@ export interface RunContext {
 
 export function runContext(project: Project, fields: Omit<RunContext, 'project' | 'worktree' | 'logs'>): RunContext {
   const state = stateDir(project.common);
-  return { project, worktree: join(state, 'worktree'), logs: join(state, 'logs'), ...fields };
+  return { project, worktree: worktreePath(project), logs: join(state, 'logs'), ...fields };
+}
+
+/**
+ * fixcrash's worktree: `.git/fixcrash/worktree`, where the agent can't write.
+ * Jest and Metro skip every path with a `.git` directory in it, so a JS
+ * project's worktree is in the user's cache directory instead (ADR-0005).
+ */
+export function worktreePath(project: Pick<Project, 'root' | 'common' | 'runner'>): string {
+  if (project.runner.name !== 'jest') return join(stateDir(project.common), 'worktree');
+  const cache = process.env.XDG_CACHE_HOME || join(homedir(), '.cache');
+  const id = createHash('sha256').update(resolvePath(project.common)).digest('hex').slice(0, 12);
+  return join(cache, 'fixcrash', 'worktrees', `${basename(project.root)}-${id}`);
 }
 
 /** One run at a time per repository: verify and reproduce share the worktree. */
@@ -254,6 +283,7 @@ export interface SiteResolution {
  * Cached per commit and site.
  */
 export function resolveSite(ctx: RunContext, base: string): SiteResolution {
+  if (ctx.expected.js) return resolveJsSite(ctx, base);
   const { runner, common, projectDir } = ctx.project;
   const site = ctx.expected.site;
   if (!site || !runner.releaseSteps || !runner.inlineFrames) return { expected: ctx.expected, note: '' };
@@ -291,8 +321,71 @@ export function resolveSite(ctx: RunContext, base: string): SiteResolution {
   });
 }
 
+/**
+ * ADR-0004. A JS error's positions are in the shipped bundle: builds the
+ * crashing commit's bundle and source map for the event's platform (cached per
+ * commit and platform), symbolicates the event's frames, and expects the first
+ * one in the app's own sources, by file and line. Throws when it can't: the
+ * positions mean nothing without the map.
+ */
+export function resolveJsSite(ctx: RunContext, base: string): SiteResolution {
+  const { runner, common, projectDir, env } = ctx.project;
+  const js = ctx.expected.js!;
+  const out = join(stateDir(common), 'cache', runner.name, 'bundles', `${base}-${js.platform}`);
+  const map = bundleMap(out);
+  if (!existsSync(map)) {
+    const r = runAt(ctx, `bundle-${js.platform}`, base, false, () => bundleSteps(js.platform, out));
+    if (r.exitCode !== 0 || !existsSync(map)) {
+      const hint = runner.hint(tail(r.log, 200));
+      throw new VerifyError(`cannot build the ${js.platform} bundle of ${short(base)} to place the crash in the sources (${r.log})${hint ? `. ${hint}` : ''}`);
+    }
+  }
+  const project = join(ctx.worktree, projectDir);
+  let frames;
+  try {
+    frames = symbolicate(project, map, js.frames, env);
+  } catch (e) {
+    throw new VerifyError((e as Error).message);
+  }
+  const chain = frames.map((f, i) => (f.file ? `${f.fn} (${f.file}:${f.line})` : `${formatJsPosition(js.frames[i]!)} (not in the map)`));
+  const ours = frames.find((f) => f.file !== undefined && !f.file.startsWith('/') && !/(^|\/)node_modules\//.test(f.file) && !runner.isTestFile(f.file));
+  if (!ours) throw new VerifyError(`no frame of the JS stack is in the app's sources at ${short(base)}: ${chain.join(' < ')}`);
+  const source = { file: ours.file!, line: ours.line!, fn: ours.fn };
+  const version = js.version ? `version ${js.version.display} (${js.version.build})'s ` : '';
+  return {
+    expected: { ...ctx.expected, frame: `${source.file}:${source.line}`, js: { ...js, source } },
+    chain,
+    note: `${version}${js.platform} bundle places the crash in ${source.fn} at ${source.file}:${source.line}${js.typed ? '' : '; the event names no JS error type, so the type is not compared'}`,
+  };
+}
+
+/**
+ * A JS error's expected line is the crashing commit's (ADR-0004). At a later
+ * commit, such as the fix's parent, it is where that line moved to, or any line
+ * of its file when the line itself changed.
+ */
+export function jsExpectedAt(project: Project, base: string, commit: string, expected: Expected): { expected: Expected; note?: string } {
+  const source = expected.js?.source;
+  if (!source || source.line === undefined || commit === base) return { expected };
+  const line = g.movedLine(project.root, base, commit, join(project.projectDir, source.file), source.line);
+  if (line === source.line) return { expected };
+  const where = `${source.file}:${source.line}`;
+  return {
+    expected: {
+      ...expected,
+      frame: line === undefined ? source.file : `${source.file}:${line}`,
+      js: { ...expected.js!, source: { ...source, line } },
+    },
+    note: line === undefined
+      ? `the crash's line ${where} changed since ${short(base)}: here the test may fail on any line of ${source.file}`
+      : `the crash's line ${where} is line ${line} here`,
+  };
+}
+
 /** The failure as a chain of throwables: parsed by the runner (crash logs), or a JVM stack trace. */
 const chainOf = (f: TestFailure): Throwable[] => f.chain ?? parseJvmStack(f.text);
+
+const caseName = (runner: Runner, c: TestCase): string => runner.caseName?.(c) ?? `${c.classname}.${c.name}`;
 
 function counts(cases: TestCase[]): RunRecord['tests'] {
   return {
@@ -335,14 +428,14 @@ export function checkFails(ctx: RunContext, role: 'base' | 'from', commit: strin
   const isTestFrame = (f: Frame) => (f.image !== undefined && images ? images.has(f.image) : byFile(f));
 
   for (const c of selected) {
-    const name = `${c.classname}.${c.name}`;
+    const name = caseName(runner, c);
     if (c.status !== 'failed' || !c.failure) {
       record.target.push({ name, status: c.status });
       record.reason = `${name} ${c.status} ${where}: it must fail there, as the crash did`;
       return record;
     }
     const chain = chainOf(c.failure);
-    const m = matchFailure(chain, ctx.expected, isTestFrame);
+    const m = ctx.expected.js ? matchJsFailure(chain, ctx.expected, isTestFrame) : matchFailure(chain, ctx.expected, isTestFrame);
     if (!m.ok) {
       const top = chain[0];
       record.target.push({
@@ -357,7 +450,7 @@ export function checkFails(ctx: RunContext, role: 'base' | 'from', commit: strin
       status: c.status,
       exception: m.throwable.type,
       message: m.throwable.message.slice(0, 300),
-      frame: formatFrame(m.throwable.frames[m.frameIndex]!),
+      frame: ctx.expected.js ? ctx.expected.frame : formatFrame(m.throwable.frames[m.frameIndex]!),
       top: m.throwable.frames.slice(0, m.frameIndex + 1).slice(0, 8).map(formatFrame),
     });
   }
@@ -377,7 +470,7 @@ export function checkPasses(ctx: RunContext, commit: string): RunRecord {
     tests, target: [], ok: false, reason: '',
   };
   const selected = selectCases(r.cases, ctx.test);
-  record.target = selected.map((c): TargetResult => ({ name: `${c.classname}.${c.name}`, status: c.status }));
+  record.target = selected.map((c): TargetResult => ({ name: caseName(runner, c), status: c.status }));
   const failed = r.cases.filter((c) => c.status === 'failed');
 
   if (selected.length === 0) {
@@ -385,9 +478,9 @@ export function checkPasses(ctx: RunContext, commit: string): RunRecord {
   } else if (selected.some((c) => c.status !== 'passed')) {
     const bad = selected.find((c) => c.status !== 'passed')!;
     const detail = bad.failure ? `: ${chainOf(bad.failure)[0]?.type ?? bad.failure.type}` : '';
-    record.reason = `${bad.classname}.${bad.name} ${bad.status} with the fix${detail}`;
+    record.reason = `${caseName(runner, bad)} ${bad.status} with the fix${detail}`;
   } else if (failed.length > 0) {
-    const names = failed.slice(0, 5).map((c) => `${c.classname}.${c.name}`).join(', ');
+    const names = failed.slice(0, 5).map((c) => caseName(runner, c)).join(', ');
     record.reason = `the suite is red with the fix: ${failed.length} failed (${names}${failed.length > 5 ? ', …' : ''})`;
   } else if (r.exitCode !== 0) {
     const hint = runner.hint(tail(r.log, 200));

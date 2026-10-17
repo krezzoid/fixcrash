@@ -91,5 +91,40 @@ test('says where the shortcut is and what to do instead', () => {
   const reason = shortcutReason(findShortcuts('app/src/test/T.kt', 'val u = theUnsafe\nm.isAccessible = true\nn.isAccessible = true\n', 'all'));
 
   assert.match(reason, /^the test reaches the crash from a state the app is never in \(app\/src\/test\/T\.kt: builds an object without its constructor \(Unsafe\), line 1; opens a private member through reflection, lines 2, 3\)\. /);
-  assert.match(reason, /report it as not reproduced and say what would \(for example Robolectric, or a UI test\)$/);
+  assert.match(reason, /report it as not reproduced and say what would \(for example Robolectric, a UI test, or a test run on the app's JS engine\)$/);
+});
+
+test('each rule catches its shortcut, in JavaScript and TypeScript', () => {
+  const cases: [string, RegExp][] = [
+    ["jest.spyOn(global, 'Date').mockImplementation(() => new RealDate(NaN));", /swaps a global/],
+    ['globalThis.Date = HermesDate;', /swaps a global/],
+    ['window.Intl = undefined as never;', /swaps a global/],
+    ['Date.prototype.toISOString = () => { throw new RangeError(); };', /replaces a method on a prototype/],
+    ["jest.spyOn(Date.prototype, 'toISOString').mockImplementation(() => { throw new RangeError(); });", /prototype's method/],
+    ["jest.spyOn(Date, 'parse').mockReturnValue(NaN);", /prototype's method/],
+    ['const parser = Object.create(ProfileParser.prototype);', /without its constructor/],
+    ["const parse = profileModule.__get__('parseProfile');", /rewire/],
+    ["import rewire from 'rewire';", /rewire/],
+  ];
+  for (const [line, what] of cases) {
+    const found = findShortcuts('t.test.ts', line, 'all').map((s) => s.what);
+    assert.equal(found.length, 1, line);
+    assert.match(found[0]!, what, line);
+  }
+});
+
+test('lets ordinary JS test code through: time, randomness, spies and mocks of inputs', () => {
+  const text = [
+    "jest.spyOn(Date, 'now').mockReturnValue(1_792_000_000_000);",
+    "jest.spyOn(Math, 'random').mockReturnValue(0.5);",
+    'jest.useFakeTimers().setSystemTime(new Date(2026, 9, 16));',
+    "jest.spyOn(console, 'error').mockImplementation(() => {});",
+    "jest.spyOn(api, 'fetchInbox').mockResolvedValue({ items: [] });",
+    "jest.mock('@react-native-firebase/crashlytics');",
+    'const RealDate = global.Date;',
+    'expect(global.Date === RealDate).toBe(true);',
+    'const copy = Object.create(null);',
+  ].join('\n');
+
+  assert.deepEqual(findShortcuts('t.test.ts', text, 'all'), []);
 });

@@ -54,20 +54,22 @@ skills/triage/SKILL.md           /fixcrash:triage: top issues of the latest vers
 skills/fix/SKILL.md              /fixcrash:fix <issue>: the loop
 agents/reproducer.md             subagent: writes the failing test, checks it with fixcrash reproduce at the crashing commit
 hooks/hooks.json, hooks/run.sh   one hook (src/hook.ts): redaction, recorded expectations, PR guard, state write ban, test-only reproducer
-bin/fixcrash                     reproduce | verify | commit-for-version | receipt | pr-body | event | app-id; symbolicate (RN, later)
+bin/fixcrash                     reproduce | verify | symbolicate (RN) | commit-for-version | receipt | pr-body | event | app-id
 src/, test/                      TypeScript behind bin/fixcrash, run directly by Node 24 (type stripping), node:test
 package.json, tsconfig.json      dev only (tsc for type checks); no runtime dependencies
-.git/fixcrash/                   state in the user's repo: worktree, receipts/, events/, attempts/, sessions/, logs, lock
+.git/fixcrash/                   state in the user's repo: worktree, receipts/, events/, attempts/, sessions/, logs, cache, lock
+~/.cache/fixcrash/worktrees/     a JS project's worktree: Metro and Jest skip paths with .git in them (ADR-0005)
 testbed/android/                 sample app with seeded crashes, used as the eval
 testbed/ios/                     the same for iOS (Swift, UIKit), on a simulator
 testbed/swiftui/                 the same for a SwiftUI app
 testbed/react-native/            the same for React Native (JS crashes), on an Android emulator and an iOS simulator
 testbed/copy-android.sh          copies it into a repository of its own, where the eval runs
 testbed/copy-ios.sh              the same for testbed/ios, or testbed/swiftui (copy-ios.sh swiftui <dest>)
+testbed/copy-rn.sh               the same for testbed/react-native
 eval/metrics.ts                  eval metrics from Claude Code session transcripts
 ```
 
-With the plugin loaded (`claude --plugin-dir .`), its hook also guards this repository: Bash commands that mention `.git/fixcrash` are refused, edits included. Edit files with the Edit and Write tools, and leave `.git/fixcrash` to the CLI.
+With the plugin loaded (`claude --plugin-dir .`), its hook also guards this repository: Bash commands that mention `.git/fixcrash` or `fixcrash/worktrees` are refused, edits included. Edit files with the Edit and Write tools, and leave `.git/fixcrash` to the CLI.
 
 ## Non-negotiable rules
 
@@ -111,6 +113,7 @@ npm run typecheck                   # tsc, no emit
 bin/fixcrash help                   # every command; the main ones:
 bin/fixcrash reproduce --issue <id> --test <Class.method> --base <commit> --hypothesis <text> [--max-attempts <n>] [--max-hypotheses <n>] [--run <id>] [--project-dir <dir>]
 bin/fixcrash verify --issue <id> --test <Class.method> --base <commit> [--from <commit>] [--project-dir <dir>]
+bin/fixcrash symbolicate --issue <id> --base <commit>   # RN: where a recorded JS error is in the sources at that commit
 bin/fixcrash event <issue>          # what the hook recorded for an issue
 bin/fixcrash pr-body                # PR description from the receipt for HEAD
 node eval/metrics.ts <project dir>  # per session: time, tool calls, reproduced, verified, PR (--json for all)
@@ -119,7 +122,7 @@ claude plugin validate .            # the marketplace, then the plugin it lists 
 claude --plugin-dir .               # Claude Code with the plugin loaded from this checkout
 ```
 
-`reproduce` and `verify` take the expected failure from the event the hook recorded; `--exception` and `--frame` stand in when there is none, and a PR then needs a re-verify. With Gradle they need a JDK: `JAVA_HOME`, `java` on PATH, or Android Studio's bundled JDK, which they find by themselves. With an Xcode project they need Xcode (selected, or at `/Applications/Xcode.app`) and an iPhone simulator; they pick the shared scheme and the simulator themselves, and `FIXCRASH_XCODE_SCHEME` and `FIXCRASH_XCODE_DESTINATION` override them. For an iOS event they first build the crashing commit in Release to find the frames inlined into the blame frame (ADR-0002), once per commit.
+`reproduce` and `verify` take the expected failure from the event the hook recorded; `--exception` and `--frame` stand in when there is none, and a PR then needs a re-verify. With Gradle they need a JDK: `JAVA_HOME`, `java` on PATH, or Android Studio's bundled JDK, which they find by themselves. With an Xcode project they need Xcode (selected, or at `/Applications/Xcode.app`) and an iPhone simulator; they pick the shared scheme and the simulator themselves, and `FIXCRASH_XCODE_SCHEME` and `FIXCRASH_XCODE_DESTINATION` override them. For an iOS event they first build the crashing commit in Release to find the frames inlined into the blame frame (ADR-0002), once per commit. In a React Native app's root (a `package.json` with Jest) they run Jest, and `--test` is `<test file>::<the test's full name>`. A JS error needs its recorded event: they build the crashing commit's bundle and source map for the event's platform to place it in the sources (ADR-0004), with `node_modules` installed by `npm ci --offline` from npm's cache (ADR-0005). A native crash in an RN app goes to `--project-dir android` or `ios`.
 
 ## Definition of done for any change
 

@@ -65,6 +65,7 @@ test('spots shell commands that reach into fixcrash state, logs aside', () => {
     'rm -rf .git/fixcrash',
     'cd .git && ls fixcrash/attempts',
     'cp x "/repo/.git/fixcrash/sessions/s"',
+    'sed -i s/x/y/ ~/.cache/fixcrash/worktrees/app-0123456789ab/src/profile.ts',
   ]) {
     assert.equal(touchesState(c), true, c);
   }
@@ -144,12 +145,16 @@ test('checks the repository a command changes to before opening the pull request
   denied(pre(outer, 'Bash', { command: 'cd inner && gh pr create --fill' }, { session_id: 'another' }));
 });
 
-test('keeps every tool out of .git/fixcrash', (t) => {
+test("keeps every tool out of fixcrash's state and worktrees", (t) => {
   const dir = repo(t);
   assert.match(denied(pre(dir, 'Write', { file_path: join(dir, '.git/fixcrash/receipts/a.json'), content: '{}' })), /only the fixcrash CLI writes there/);
   denied(pre(dir, 'Edit', { file_path: join(dir, '.git/fixcrash/events/i.json') }));
   denied(pre(dir, 'Bash', { command: `echo '{}' > ${dir}/.git/fixcrash/receipts/a.json` }));
   assert.deepEqual(pre(dir, 'Bash', { command: `tail ${dir}/.git/fixcrash/logs/a-base.log` }), { exitCode: 0 });
+  // A JS project's worktree is in the cache directory (ADR-0005).
+  const worktree = '/Users/x/.cache/fixcrash/worktrees/app-0123456789ab';
+  assert.match(denied(pre(dir, 'Edit', { file_path: `${worktree}/node_modules/jest/bin/jest.js` })), /worktrees are where reproduce and verify run/);
+  assert.deepEqual(pre(dir, 'Edit', { file_path: join(dir, 'src/fixcrash/worktrees.ts') }), { exitCode: 0 });
 });
 
 test('lets the reproducer write tests only', (t) => {

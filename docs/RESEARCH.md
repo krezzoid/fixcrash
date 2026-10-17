@@ -508,6 +508,21 @@ These end in an honest report. The plugin's value depends on the share of the fi
   - Test names: `fullName` is the `describe` titles and the test's title joined with spaces (`TagList renders a page whose total counts tags it lacks`). The file is the result's `name`, an absolute path. A targeted run is `jest <file> -t '<anchored, escaped fullName>'`.
   - Time: four failing tests 1.8 s, the testbed's suite of 12 tests 1.9 s.
 
+**2026-10-17: The Jest runner, end to end (step 6.5)** (a copy of the testbed made by `testbed/copy-rn.sh`: tag `v1.0`, then one commit that bumps the version; the 6.3 events recorded through the hook; `bin/fixcrash` from this checkout; Node 24.21, npm 11)
+
+- **Metro and Jest skip `.git`.** In `.git/fixcrash/worktree` the bundle failed with "Failed to get the SHA-1 for … not watched", and Jest found no tests. Both ignore every path that has a `.git` directory in it: the version-control pattern in `metro-file-map` and `jest-haste-map` is hardcoded. The JS worktree moved to the user's cache directory (ADR-0005).
+- **Times**
+  - `symbolicate`: 6.6 s cold, of which `npm ci --offline` took 3 s, and 0.25 s with the bundle cached. The iOS bundle took 3.3 s more.
+  - `verify`: about 3 s per scenario: the test at the crashing commit and at the fix's parent, then the suite of 8 tests with the fix, 0.6 to 1 s per run.
+- **Where the crashes are**, after symbolication at `v1.0`: parser `src/profile.ts:15` (from the Android and the iOS event alike), render `src/TagList.tsx:19` (`Array.from$argument_1`), async `src/inbox.ts:14` (`loadHeadline`), engine `src/updates.ts:13`.
+- **Results**
+  - parser (the Android and the iOS event), render, async: reproduced, then VERIFIED.
+  - engine: NOT REPRODUCED. A test with the backend's format passes at `v1.0`: Node parses it. One that swaps `Date` was refused by the shortcut rule before it ran (0.13 s).
+- **`.resolves` loses the rejection's stack.** `await expect(load()).resolves…` fails with the matcher's error ("Received promise rejected instead of resolved") and the matcher's stack. The async test matched only once it awaited `load()` itself. The match's reason now says so.
+- **Routing:** a JS error with `--project-dir android` is refused with a pointer to the app's root, and a native expectation in a Jest project gets the opposite message.
+- **The PR guard** let the branch with a receipt through and stopped one without, as for native crashes.
+- **The fix's parent** shares the crashing commit's lines here (the commit after `v1.0` changes only version numbers). A real app's default branch moves on, and a line added above the crash moves the expected line, so `verify` follows it through `git diff` at the fix's parent (ADR-0004, point 5; `test/rn.test.ts`).
+
 ## 8. Risks
 
 - **Testability of real apps.** Logic living in Activities, Fragments or ViewControllers can't be unit-tested without refactoring. Mitigation: an honest "can't reproduce" path, and measuring the reproducible share early.
