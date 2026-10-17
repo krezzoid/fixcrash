@@ -534,6 +534,17 @@ These end in an honest report. The plugin's value depends on the share of the fi
 - **V8 rejects years 0013 to 0031** in the testbed's format: `new Date('0013/01/01 10:00')` is an invalid date on Node 24.21, and `toISOString()` throws `RangeError: Invalid time value`. The app's check (`src/updates.ts:8`) accepts those years. So a made-up input throws the engine scenario's error at `src/updates.ts:13` on Node too. The backend's own dates parse there. Step 6.2 and ADR-0004 said no input that passes the check reaches the crash on Node; that was wrong.
 - **One version, two bundles.** The Android issue's six events include one from an earlier build of the testbed with the same version, `1.0 (1)`. Its frames are about 141 columns off the tagged commit's bundle, and symbolicated there its top frame lands in `react-native-safe-area-context`. The message and React's component stack (`TagList`) still match the other events of that error.
 
+**2026-10-17: Publishing a plugin** (code.claude.com/docs: `plugins/publish`, `plugins/create-marketplace`, `plugins/host-marketplace`, `plugins/loading`; claude.com/docs: `plugins/pre-submission-checklist`, `plugins/platform-support`)
+
+- **Own marketplace.** A repository with `.claude-plugin/marketplace.json` is published once pushed. Install: `claude plugin install <name> --marketplace <owner>/<repo>` (Claude Code 2.1.292 or later), or `claude plugin marketplace add <owner>/<repo>` then `claude plugin install <name>@<marketplace>`. The marketplace's name comes from `marketplace.json`, not the repository.
+- **Versions.** The version is `plugin.json`'s `version`, then the marketplace entry's, then the commit. Users get an update only when it changes. Auto-update is off for third-party marketplaces by default. `claude plugin validate --strict` fails on warnings, such as a missing `version`.
+- **Install copies the plugin folder** into `~/.claude/plugins/cache/<marketplace>/<plugin>/<version>/`. When that folder has a `package.json` and a `package-lock.json` (or `npm-shrinkwrap.json`, `bun.lock`), Claude Code runs a frozen dependency install there with `--ignore-scripts`, and nothing turns it off.
+- **Anthropic's directory** takes submissions from the developer portal (claude.ai/directory/manage), on a paid claude.ai plan. A listed plugin reaches Claude Code as `<name>@synced`.
+  - The portal blocks: no LICENSE, a README under 40 words, an unpinned launcher (`npx` without an exact version), symlinks, `.DS_Store`.
+  - It holds for a reviewer: files over 256 KiB, more than 512 files, binaries other than images and fonts, a lockfile install, any pinned `npx` package, and scripts it can't follow when the plugin is a subfolder of its repository.
+  - A security scan runs on each new version and wants the README to describe everything the plugin runs, sends or fetches.
+- **Surfaces.** A top-level `bin/` makes claude.ai chat and Cowork refuse the plugin. Claude Code loads it. Agents and hooks load in Cowork and Claude Code, not in chat.
+
 ## 8. Risks
 
 - **Testability of real apps.** Logic living in Activities, Fragments or ViewControllers can't be unit-tested without refactoring. Mitigation: an honest "can't reproduce" path, and measuring the reproducible share early.

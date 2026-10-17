@@ -141,7 +141,7 @@ In Claude Code:
 | 4 | Eval on the testbed: [results](docs/EVAL.md) | ✅ |
 | 5 | iOS (Swift): UIKit and SwiftUI testbeds, xcodebuild runner, eval | ✅ |
 | 6 | React Native: Jest runner, JS stack symbolication, skills, eval: [results](docs/EVAL.md#react-native) | ✅ |
-| 7 | Publish | |
+| 7 | Publish: public repository and marketplace, website, Anthropic's plugin directory | next |
 
 Details: [docs/PLAN.md](docs/PLAN.md). Eval results: [docs/EVAL.md](docs/EVAL.md). Landscape, data, risks and open questions: [docs/RESEARCH.md](docs/RESEARCH.md).
 
