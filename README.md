@@ -140,7 +140,7 @@ In Claude Code:
 | 3 | Plugin: skills `triage` and `fix`, `reproducer` subagent, PR guard hook | ✅ |
 | 4 | Eval on the testbed: [results](docs/EVAL.md) | ✅ |
 | 5 | iOS (Swift): UIKit and SwiftUI testbeds, xcodebuild runner, eval | ✅ |
-| 6 | React Native: Jest runner and JS stack symbolication done; skills and eval next | in progress |
+| 6 | React Native: Jest runner, JS stack symbolication and skills done; eval next | in progress |
 | 7 | Publish | |
 
 Details: [docs/PLAN.md](docs/PLAN.md). Eval results: [docs/EVAL.md](docs/EVAL.md). Landscape, data, risks and open questions: [docs/RESEARCH.md](docs/RESEARCH.md).

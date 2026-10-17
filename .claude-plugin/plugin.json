@@ -9,18 +9,18 @@
   "homepage": "https://github.com/krezzoid/fixcrash",
   "repository": "https://github.com/krezzoid/fixcrash",
   "license": "MIT",
-  "keywords": ["crashlytics", "firebase", "android", "crash", "testing"],
+  "keywords": ["crashlytics", "firebase", "android", "ios", "react-native", "crash", "testing"],
   "userConfig": {
     "app_id": {
       "type": "string",
       "title": "Firebase app id",
-      "description": "The app's Firebase app id, client_info.mobilesdk_app_id in google-services.json. Leave empty to read it from google-services.json.",
+      "description": "The app's Firebase app id: client_info.mobilesdk_app_id in google-services.json, GOOGLE_APP_ID in GoogleService-Info.plist. Leave empty to read it from those files.",
       "default": ""
     },
     "project_dir": {
       "type": "string",
-      "title": "Android project directory",
-      "description": "Where gradlew is, relative to the repository root. Use . for the root.",
+      "title": "Project directory",
+      "description": "Where gradlew, the Xcode project or a React Native app's package.json is, relative to the repository root. Use . for the root.",
       "default": "."
     },
     "release_tag_pattern": {

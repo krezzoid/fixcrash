@@ -1,6 +1,7 @@
 import assert from 'node:assert/strict';
+import { join } from 'node:path';
 import { test } from 'node:test';
-import { appIdsIn, plistString } from '../src/appid.ts';
+import { appIdsIn, applicationIdFor, plistString } from '../src/appid.ts';
 import { tempDir, writeFiles } from './helpers.ts';
 
 const PLIST = `<?xml version="1.0" encoding="UTF-8"?>
@@ -38,4 +39,27 @@ test('reads a string from a property list', () => {
   assert.equal(plistString(PLIST, 'BUNDLE_ID'), 'com.example.app');
   assert.equal(plistString(PLIST, 'MISSING'), undefined);
   assert.equal(plistString('<key>A</key><string>x &amp; y</string>', 'A'), 'x & y');
+});
+
+test("keeps the Android app whose package is the module's applicationId, as the Gradle plugin does", (t) => {
+  const dir = tempDir(t);
+  const both = JSON.stringify({
+    client: [
+      { client_info: { mobilesdk_app_id: '1:100000000001:android:00000000000000aa', android_client_info: { package_name: 'com.example.app' } } },
+      { client_info: { mobilesdk_app_id: '1:100000000001:android:00000000000000dd', android_client_info: { package_name: 'com.example.app.rn' } } },
+    ],
+  });
+  writeFiles(dir, {
+    'rn/android/app/google-services.json': both,
+    'rn/android/app/build.gradle': 'android {\n    defaultConfig {\n        applicationId "com.example.app.rn"\n    }\n}\n',
+    'kts/app/src/release/google-services.json': both,
+    'kts/app/build.gradle.kts': 'android {\n    defaultConfig {\n        applicationId = "com.example.app"\n    }\n}\n',
+    'none/google-services.json': both,
+  });
+
+  const apps = (sub: string) => appIdsIn(join(dir, sub)).map((a) => a.app);
+  assert.deepEqual(apps('rn'), ['com.example.app.rn']);
+  assert.deepEqual(apps('kts'), ['com.example.app']);
+  assert.deepEqual(apps('none'), ['com.example.app', 'com.example.app.rn']);
+  assert.equal(applicationIdFor(join(dir, 'rn'), 'android/app/google-services.json'), 'com.example.app.rn');
 });

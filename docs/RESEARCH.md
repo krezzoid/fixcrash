@@ -523,6 +523,12 @@ These end in an honest report. The plugin's value depends on the share of the fi
 - **The PR guard** let the branch with a receipt through and stopped one without, as for native crashes.
 - **The fix's parent** shares the crashing commit's lines here (the commit after `v1.0` changes only version numbers). A real app's default branch moves on, and a line added above the crash moves the expected line, so `verify` follows it through `git diff` at the fix's parent (ADR-0004, point 5; `test/rn.test.ts`).
 
+**2026-10-17: Skills for React Native (step 6.6)** (firebase-tools 15.32.1)
+
+- **`crashlytics_list_events`** takes `appId`, `pageSize` (default 1) and a `filter` with `issueId`, `issueVariantId`, `versionDisplayNames`, `issueErrorTypes`, `intervalStartTime` and `intervalEndTime`, and more. Without an interval it looks back 7 days; the start can be at most 90 days back. The fixcrash hook records the events it returns, as it does for `crashlytics_batch_get_events`.
+- **`google-services.json` and `applicationId`:** the RN testbed's file lists both Android apps of the Firebase project. Its module's `android/app/build.gradle` has `applicationId "io.github.krezzoid.fixcrash.testbed.rn"`, the package of one of them: that client is the app's, and `fixcrash app-id` now keeps only it.
+- **`testbed/copy-rn.sh`** made a copy in 3.5 s, `npm ci` from the cache included: `Initial version` tagged `v1.0`, then `Start version 1.1`. The Firebase configs were copied and stayed untracked.
+
 ## 8. Risks
 
 - **Testability of real apps.** Logic living in Activities, Fragments or ViewControllers can't be unit-tested without refactoring. Mitigation: an honest "can't reproduce" path, and measuring the reproducible share early.

@@ -2,9 +2,13 @@
 // the Firebase SDKs read: google-services.json (Android) and
 // GoogleService-Info.plist (Apple). Only the id and the package or bundle id
 // leave this module: both files also hold API keys.
+//
+// A google-services.json may list every Android app of the Firebase project.
+// Like the google-services Gradle plugin, keep the one whose package is the
+// module's applicationId, when the module's build file names it.
 
-import { readFileSync } from 'node:fs';
-import { join } from 'node:path';
+import { existsSync, readFileSync } from 'node:fs';
+import { dirname, join, relative } from 'node:path';
 import { decodeEntities } from './junit.ts';
 import { findFiles } from './runner.ts';
 
@@ -30,6 +34,22 @@ export function plistString(xml: string, key: string): string | undefined {
   return m ? decodeEntities(m[1]!) : undefined;
 }
 
+/**
+ * The applicationId of the Gradle module a google-services.json belongs to: in
+ * the module's directory, or two levels up from `src/<variant>/`.
+ */
+export function applicationIdFor(dir: string, configFile: string): string | undefined {
+  let module = dirname(join(dir, configFile));
+  for (let up = 0; up < 3 && !relative(dir, module).startsWith('..'); up++, module = dirname(module)) {
+    for (const name of ['build.gradle.kts', 'build.gradle']) {
+      const path = join(module, name);
+      if (!existsSync(path)) continue;
+      return readFileSync(path, 'utf8').match(/^\s*applicationId\s*=?\s*["']([^"']+)["']/m)?.[1];
+    }
+  }
+  return undefined;
+}
+
 export function appIdsIn(dir: string): AppId[] {
   const found: AppId[] = [];
   for (const file of findFiles(dir, new Set([ANDROID_CONFIG, APPLE_CONFIG]))) {
@@ -40,10 +60,13 @@ export function appIdsIn(dir: string): AppId[] {
       continue;
     }
     const config = JSON.parse(text) as GoogleServices;
-    for (const c of config.client ?? []) {
+    const apps = (config.client ?? []).flatMap((c) => {
       const id = c.client_info?.mobilesdk_app_id;
-      if (id) found.push({ id, app: c.client_info?.android_client_info?.package_name ?? '', file });
-    }
+      return id ? [{ id, app: c.client_info?.android_client_info?.package_name ?? '', file }] : [];
+    });
+    const own = applicationIdFor(dir, file);
+    const mine = apps.filter((a) => a.app === own);
+    found.push(...(mine.length > 0 ? mine : apps));
   }
   return found;
 }

@@ -47,7 +47,8 @@ const USAGE = `usage:
   fixcrash event <issue>          What the hook recorded for an issue: expected failures, versions.
   fixcrash receipt [--commit <ref>]   The receipt for HEAD (or --commit) if valid; exit 1 if not.
   fixcrash pr-body [--commit <ref>]   A pull request description from that receipt.
-  fixcrash app-id [--project-dir <dir>]   Firebase app ids from google-services.json and GoogleService-Info.plist files.`;
+  fixcrash app-id [--project-dir <dir>]   Firebase app ids from GoogleService-Info.plist files, and from google-services.json
+                                          files: the app whose package is the module's applicationId, if it is there.`;
 
 class UsageError extends Error {}
 
