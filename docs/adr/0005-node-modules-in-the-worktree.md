@@ -53,7 +53,7 @@ Saves the reinstall when a run moves between lockfiles and back, at hundreds of 
 
 - Easier: Jest and the bundle build see exactly the crashing commit's dependencies.
 - Harder: Yarn and pnpm apps wait for their own commands (`yarn install --frozen-lockfile --offline`, `pnpm install --frozen-lockfile --offline`).
-- Harder: a JS project's worktree and its `node_modules` live outside the repository, in the cache directory, and are left there until the user deletes them.
+- Harder: a JS project's worktree and its `node_modules` live outside the repository, in the cache directory, and are left there until the user deletes them. Deleting them is safe: the next run installs `node_modules` again, also when the bundle is already cached (fixed in step 7.1).
 - Revisit: with the first Yarn or pnpm app, and if a monorepo hoists `node_modules` above the app's directory.
 
 ## Action items

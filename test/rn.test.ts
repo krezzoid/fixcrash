@@ -3,7 +3,7 @@
 // metro-symbolicate. Values are synthetic.
 
 import assert from 'node:assert/strict';
-import { chmodSync, existsSync, mkdirSync, readFileSync } from 'node:fs';
+import { chmodSync, existsSync, mkdirSync, readFileSync, rmSync } from 'node:fs';
 import { join } from 'node:path';
 import { test } from 'node:test';
 import { fileURLToPath } from 'node:url';
@@ -89,6 +89,18 @@ test("places a recorded JS error in the crashing commit's sources, and builds th
   // Jest and Metro skip every path with .git in it (ADR-0005).
   assert.equal(existsSync(join(app.dir, '.git/fixcrash/worktree')), false);
   assert.ok(existsSync(join(app.cache, 'fixcrash/worktrees')));
+});
+
+test('installs node_modules again for a cached bundle when the worktree was deleted', (t) => {
+  const app = fakeApp(t);
+  symbolicateIssue({ cwd: app.dir, issue: ISSUE, base: app.base });
+  // The user cleans their cache directory; the bundle stays cached in .git/fixcrash.
+  rmSync(join(app.cache, 'fixcrash/worktrees'), { recursive: true });
+
+  const r = symbolicateIssue({ cwd: app.dir, issue: ISSUE, base: app.base });
+
+  assert.equal(r.expected.frame, 'src/profile.ts:2');
+  assert.deepEqual(app.calls(), ['npm', 'bundle', 'hermesc', 'compose', 'symbolicate', 'npm', 'symbolicate']);
 });
 
 test('reproduces a JS error with an uncommitted Jest test, run alone at the crashing version', (t) => {

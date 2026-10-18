@@ -198,6 +198,14 @@ export function bundleSteps(platform: JsSite['platform'], out: string): Step[] {
 /** The composed source map `bundleSteps` writes. */
 export const bundleMap = (out: string): string => join(out, 'bundle.map');
 
+/** Only node_modules for this commit's lockfile: what `symbolicate` needs beside a cached map. */
+export const depsSteps = (): Step[] => [depsStep];
+
+const SYMBOLICATOR = 'node_modules/metro-symbolicate/src/index.js';
+
+/** Whether the project's node_modules has the `metro-symbolicate` that `symbolicate` runs. */
+export const canSymbolicate = (projectDir: string): boolean => existsSync(join(projectDir, SYMBOLICATOR));
+
 export interface SymbolicatedFrame {
   fn: string;
   /** Relative to the project directory, unless outside it. */
@@ -219,11 +227,10 @@ export function parseSymbolicated(output: string, frames: JsPosition[], projectD
 
 /** Runs the app's own `metro-symbolicate` on the event's frames. Throws when it can't. */
 export function symbolicate(projectDir: string, map: string, frames: JsPosition[], env: NodeJS.ProcessEnv): SymbolicatedFrame[] {
-  const tool = 'node_modules/metro-symbolicate/src/index.js';
-  if (!existsSync(join(projectDir, tool))) throw new Error(`no metro-symbolicate in ${projectDir}/node_modules`);
+  if (!canSymbolicate(projectDir)) throw new Error(`no metro-symbolicate in ${projectDir}/node_modules`);
   // metro-symbolicate stops at line 0; built-ins are already left out of the frames.
   const input = frames.map((p) => `${p.fn}@${Math.max(p.line, 1)}:${p.column}`).join('\n');
-  const r = spawnSync('node', [tool, map], { cwd: projectDir, env, input: `${input}\n`, encoding: 'utf8', timeout: 120_000 });
+  const r = spawnSync('node', [SYMBOLICATOR, map], { cwd: projectDir, env, input: `${input}\n`, encoding: 'utf8', timeout: 120_000 });
   if (r.status !== 0) throw new Error(`metro-symbolicate failed: ${(r.stderr || r.stdout || String(r.error)).trim().slice(0, 300)}`);
   return parseSymbolicated(r.stdout, frames, projectDir);
 }

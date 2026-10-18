@@ -163,7 +163,7 @@ The website is built and deployed in its own repository, `krezzoid/fixcrash-site
   - Why the iOS render crashes didn't reach Crashlytics (an `RCTFatalException` thrown during render, `.ips` written). Parser and engine `RCTFatalException`s did.
   - Yarn and pnpm apps: `reproduce`, `verify` and `symbolicate` stop with a message (ADR-0005).
   - Apps with Hermes off: their bundle is plain minified JS, with no `hermesc` step and other positions. Untried.
-  - fixcrash leaves a JS project's worktree, with its `node_modules` (hundreds of MB), in the user's cache directory. No command removes it yet.
+  - fixcrash leaves a JS project's worktree, with its `node_modules` (hundreds of MB), in the user's cache directory. No command removes it yet; deleting it by hand is safe.
   - One JS bug on both platforms is two issues and, with two sessions, two pull requests (`EVAL.md`, React Native, finding 4). Matching JS errors across an app's Android and iOS ids by their symbolicated file and line would join them.
   - An event from an earlier build with the same version number has other bundle offsets, and the tagged commit's map places it wrong (`EVAL.md`, React Native, finding 2). Nothing flags it; the agent noticed by the message.
   - The same JS error type at the same line can come from an input the app never gets (`EVAL.md`, React Native, finding 3). Only the reproducer's judgment rules it out, as with the native frame rule. The testbed's engine scenario could tighten its year check the next time crashes are reported.

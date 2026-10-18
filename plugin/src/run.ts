@@ -14,7 +14,7 @@ import * as g from './git.ts';
 import { selectCases, type TestCase, type TestFailure } from './junit.ts';
 import { stateDir, type RunRecord, type TargetResult } from './receipt.ts';
 import { findFiles, gradle, type RunDirs, type Runner, type Step } from './runner.ts';
-import { bundleMap, bundleSteps, isJestProject, jest, symbolicate } from './jest.ts';
+import { bundleMap, bundleSteps, canSymbolicate, depsSteps, isJestProject, jest, symbolicate } from './jest.ts';
 import {
   formatFrame, formatJsPosition, matchFailure, matchJsFailure, parseJvmStack, sameSymbol, testFrameDetector,
   type Expected, type Frame, type Throwable,
@@ -341,6 +341,14 @@ export function resolveJsSite(ctx: RunContext, base: string): SiteResolution {
     }
   }
   const project = join(ctx.worktree, projectDir);
+  if (!canSymbolicate(project)) {
+    // The map is cached in .git/fixcrash, and the worktree's node_modules is gone: a cleaned cache directory.
+    const r = runAt(ctx, 'deps', base, false, depsSteps);
+    if (r.exitCode !== 0) {
+      const hint = runner.hint(tail(r.log, 200));
+      throw new VerifyError(`cannot install node_modules at ${short(base)} to place the crash in the sources (${r.log})${hint ? `. ${hint}` : ''}`);
+    }
+  }
   let frames;
   try {
     frames = symbolicate(project, map, js.frames, env);
