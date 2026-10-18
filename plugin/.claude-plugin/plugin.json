@@ -10,6 +10,7 @@
   "repository": "https://github.com/krezzoid/fixcrash",
   "documentationUrl": "https://github.com/krezzoid/fixcrash/blob/master/plugin/README.md",
   "supportUrl": "https://github.com/krezzoid/fixcrash/issues",
+  "privacyPolicyUrl": "https://fixcrash.app/privacy",
   "license": "MIT",
   "keywords": ["crashlytics", "firebase", "android", "ios", "react-native", "crash", "testing"],
   "userConfig": {
