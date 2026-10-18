@@ -144,18 +144,7 @@ claude --plugin-dir ../fixcrash/plugin
 
 The plugin's options (Firebase app id, project directory, release tag pattern, budgets) default to an app at the repository root, with the app id read from `google-services.json` or `GoogleService-Info.plist`.
 
-## Roadmap
-
-| # | Step | State |
-|---|------|-------|
-| 0 | Research and design | ✅ |
-| 1 | Spike: Android testbed with three seeded crashes, read through Firebase MCP | ✅ |
-| 2 | `fixcrash verify`: fail-before, pass-after, suite-green, receipt | ✅ |
-| 3 | Plugin: skills `triage` and `fix`, `reproducer` subagent, PR guard hook | ✅ |
-| 4 | Eval on the testbed: [results](docs/EVAL.md) | ✅ |
-| 5 | iOS (Swift): UIKit and SwiftUI testbeds, xcodebuild runner, eval | ✅ |
-| 6 | React Native: Jest runner, JS stack symbolication, skills, eval: [results](docs/EVAL.md#react-native) | ✅ |
-| 7 | Publish: public repository and marketplace, website, Anthropic's plugin directory | in progress |
+## Docs
 
 Eval results: [docs/EVAL.md](docs/EVAL.md). Known limits, and what isn't done yet: [docs/LIMITS.md](docs/LIMITS.md). Decisions, with the options considered: [docs/adr/](docs/adr/).
 
