@@ -58,7 +58,7 @@ test/                            node:test unit tests; test/layout.test.ts keeps
 package.json, tsconfig.json      dev only (tsc for type checks); no runtime dependencies
 LICENSE, SECURITY.md, CHANGELOG.md  MIT; how to report a vulnerability; changes per version
 .github/workflows/ci.yml         npm test, typecheck and plugin validate --strict on pushes to master, pull requests and releases
-.github/workflows/release.yml    Actions → Release: CI, the next version, the changelog dated, a commit and tag on master, a GitHub release with the plugin as a zip
+.github/workflows/release.yml    Actions → Release: CI, the next version, the changelog dated, a commit and tag on master, the release branch moved to it (ADR-0007), a GitHub release with the plugin as a zip
 scripts/release.ts               the release's version and changelog step
 .git/fixcrash/                   state in the user's repo: worktree, receipts/, events/, attempts/, sessions/, logs, cache, lock
 ~/.cache/fixcrash/worktrees/     a JS project's worktree: Metro and Jest skip paths with .git in them (ADR-0005)
