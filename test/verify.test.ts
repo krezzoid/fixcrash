@@ -1,10 +1,10 @@
 import assert from 'node:assert/strict';
-import { existsSync, writeFileSync } from 'node:fs';
+import { existsSync, readFileSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { test } from 'node:test';
-import { checkReceipt, receiptPath } from '../src/receipt.ts';
-import { recordEvent } from '../src/record.ts';
-import { verify, VerifyError, type VerifyOptions } from '../src/verify.ts';
+import { checkReceipt, receiptPath } from '../plugin/src/receipt.ts';
+import { recordEvent } from '../plugin/src/record.ts';
+import { verify, VerifyError, type VerifyOptions } from '../plugin/src/verify.ts';
 import {
   commit, crashingProject, EXPECTED, fakeRunner as fake, PARSER, parserEvent, sh, TEST_ID, TESTS,
 } from './helpers.ts';
@@ -19,6 +19,7 @@ function run(dir: string, base: string, extra: Partial<VerifyOptions> = {}) {
 }
 
 const gitDir = (dir: string) => join(dir, '.git');
+const MANIFEST = JSON.parse(readFileSync(new URL('../plugin/.claude-plugin/plugin.json', import.meta.url), 'utf8')) as { version: string };
 
 test('verifies a fix: fails at base as the crash did, passes with the fix, suite green', (t) => {
   const { dir, base } = crashingProject(t);
@@ -38,6 +39,7 @@ test('verifies a fix: fails at base as the crash did, passes with the fix, suite
   assert.equal(check.ok, true);
   assert.ok(check.ok && check.receipt.issue === 'issue-1' && check.receipt.base === base);
   assert.deepEqual(check.ok && check.receipt.fixFiles, [PARSER]);
+  assert.equal(check.ok && check.receipt.fixcrash, MANIFEST.version, 'the receipt names the plugin version');
   // The user's checkout is untouched: no reports, no overlay.
   assert.equal(existsSync(join(dir, 'app/build')), false);
 });

@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict';
 import { join } from 'node:path';
 import { test } from 'node:test';
-import { appIdsIn, applicationIdFor, plistString } from '../src/appid.ts';
+import { appIdsIn, applicationIdFor, plistString } from '../plugin/src/appid.ts';
 import { tempDir, writeFiles } from './helpers.ts';
 
 const PLIST = `<?xml version="1.0" encoding="UTF-8"?>

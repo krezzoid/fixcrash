@@ -12,5 +12,5 @@
     "noUncheckedIndexedAccess": true,
     "skipLibCheck": true
   },
-  "include": ["src", "test", "eval"]
+  "include": ["plugin/src", "test", "eval"]
 }

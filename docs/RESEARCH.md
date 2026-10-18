@@ -545,6 +545,30 @@ These end in an honest report. The plugin's value depends on the share of the fi
   - A security scan runs on each new version and wants the README to describe everything the plugin runs, sends or fetches.
 - **Surfaces.** A top-level `bin/` makes claude.ai chat and Cowork refuse the plugin. Claude Code loads it. Agents and hooks load in Cowork and Claude Code, not in chat.
 
+**2026-10-18: Plugin layouts, installed (step 7.1)** (Claude Code 2.1.302, Node 24.22; code.claude.com/docs: `plugins/loading`, `plugins/marketplace-reference`, `plugins/host-marketplace`; claude.com/docs: `plugins/pre-submission-checklist`. The decision is ADR-0006)
+
+- **Installing from a local marketplace.**
+  - `claude plugin marketplace add` takes `owner/repo`, a git or https URL, or a path. It refuses a `file://` URL. A marketplace declared in settings isn't fetched by the CLI, only by a session at start.
+  - A marketplace added from a path loads its relative-path plugins in place, not as the copy users get.
+  - To test the copy locally, list the plugin with a `url` or `git-subdir` source whose `url` is `file://<repository>`: Claude Code clones it and copies it into the cache.
+  - `CLAUDE_CONFIG_DIR` keeps marketplaces, installs and the cache out of the user's own configuration. Such a configuration isn't logged in, so a `claude -p` run uses the normal one with `--plugin-dir <the cached copy>`.
+- **The package install** runs only when the plugin folder has a `package.json` and a lockfile (`bun.lock`, `npm-shrinkwrap.json` or `package-lock.json`); a `package.json` alone triggers nothing.
+  - It is frozen to the lockfile, runs no scripts, takes registry packages only, and stops after 60 s.
+  - It installs dev dependencies too: the old root layout got TypeScript 7 with its native binary and Node's types, 33 MB, in 1 s from npm's cache.
+- **Versions and fetching.**
+  - A relative-path plugin in a git-hosted marketplace takes the manifest's version, or else the commit of its directory.
+  - A `git-subdir` source fetches with a sparse, partial clone.
+  - A git-hosted marketplace is cloned whole into `~/.claude/plugins/marketplaces/<name>/`. `marketplace add --sparse <paths>` limits the checkout.
+  - `git subtree split --prefix plugin -b release` made a branch with the plugin at its root in 0.4 s.
+- **Anthropic's directory reads the plugin folder**, the one with `.claude-plugin/plugin.json`, at the root of the repository or in a subfolder.
+  - A README of 40 words or more and a `LICENSE` (or `license` in `plugin.json`) must be in that folder.
+  - In a subfolder, a hook's or MCP server's command must name each path in full from `${CLAUDE_PLUGIN_ROOT}`, or validation blocks.
+  - In a subfolder, a hook script that uses another shell variable or a command substitution, or runs another file, is held for a reviewer ("Scripts the validator couldn't follow"). The checklist's advice is to keep the plugin at the root of its own repository.
+  - A pinned `npx` package is always held.
+  - The repository must be under 50 MiB as GitHub archives it, with fewer than 10,000 files and folders, and every file in the plugin folder under 5 MiB.
+- **Node's module type.** Node 24 runs a `.ts` file with `import` syntax as an ES module when no `package.json` says otherwise. If a `package.json` without `"type"` sits above the file, Node prints `MODULE_TYPELESS_PACKAGE_JSON` and parses the file twice, on every run.
+- **Skills under `claude -p`.** The triage skill's `allowed-tools` grants `fixcrash commit-for-version*`, which doesn't cover a compound command (`fixcrash commit-for-version 1.0 1; echo …; git tag; ls`). It was denied, and the skill went on without it.
+
 ## 8. Risks
 
 - **Testability of real apps.** Logic living in Activities, Fragments or ViewControllers can't be unit-tested without refactoring. Mitigation: an honest "can't reproduce" path, and measuring the reproducible share early.

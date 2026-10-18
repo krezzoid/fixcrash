@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
-import { prBody } from '../src/prbody.ts';
-import type { Receipt, RunRecord } from '../src/receipt.ts';
+import { prBody } from '../plugin/src/prbody.ts';
+import type { Receipt, RunRecord } from '../plugin/src/receipt.ts';
 
 const sha = (c: string) => c.repeat(40);
 

@@ -1,9 +1,9 @@
 import assert from 'node:assert/strict';
 import { join } from 'node:path';
 import { test } from 'node:test';
-import { recordEvent } from '../src/record.ts';
-import { reproduce, type ReproduceOptions } from '../src/reproduce.ts';
-import { VerifyError } from '../src/run.ts';
+import { recordEvent } from '../plugin/src/record.ts';
+import { reproduce, type ReproduceOptions } from '../plugin/src/reproduce.ts';
+import { VerifyError } from '../plugin/src/run.ts';
 import { commit, crashingProject, fakeRunner, PARSER, parserEvent, TEST_ID, TESTS, writeFiles } from './helpers.ts';
 
 function run(dir: string, base: string, extra: Partial<ReproduceOptions> = {}) {

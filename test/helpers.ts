@@ -2,8 +2,8 @@ import { execFileSync } from 'node:child_process';
 import { copyFileSync, mkdirSync, mkdtempSync, realpathSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { dirname, join } from 'node:path';
-import type { CrashEvent } from '../src/event.ts';
-import { gradle, type Runner } from '../src/runner.ts';
+import type { CrashEvent } from '../plugin/src/event.ts';
+import { gradle, type Runner } from '../plugin/src/runner.ts';
 
 export function tempDir(t: { after: (fn: () => void) => void }): string {
   const dir = realpathSync(mkdtempSync(join(tmpdir(), 'fixcrash-test-')));

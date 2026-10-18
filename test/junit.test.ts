@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 import { test } from 'node:test';
-import { decodeEntities, parseJUnit, parseXml, selectCases, type TestCase } from '../src/junit.ts';
+import { decodeEntities, parseJUnit, parseXml, selectCases, type TestCase } from '../plugin/src/junit.ts';
 
 const fixture = (name: string) => readFileSync(new URL(`./fixtures/gradle/${name}`, import.meta.url), 'utf8');
 

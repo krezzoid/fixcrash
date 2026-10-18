@@ -1,8 +1,8 @@
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 import { test } from 'node:test';
-import { parseJUnit } from '../src/junit.ts';
-import { matchFailure, parseJvmStack, testFrameDetector } from '../src/stack.ts';
+import { parseJUnit } from '../plugin/src/junit.ts';
+import { matchFailure, parseJvmStack, testFrameDetector } from '../plugin/src/stack.ts';
 
 const PAGER = 'io.github.krezzoid.fixcrash.testbed.feed.FeedPager.page';
 const noTestCode = () => false;

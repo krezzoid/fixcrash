@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
-import { markSession, readRecord, recordEvent, resolveExpectation, sessionActive } from '../src/record.ts';
+import { markSession, readRecord, recordEvent, resolveExpectation, sessionActive } from '../plugin/src/record.ts';
 import { EXPECTED, parserEvent, tempDir } from './helpers.ts';
 
 test('merges events of one issue: distinct expectations and versions, once each', (t) => {

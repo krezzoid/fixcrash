@@ -108,7 +108,7 @@ Usually it can't, and fixcrash ends with a report:
 - Claude Code.
 - A Firebase project with Crashlytics, and a Firebase CLI login (`npx firebase-tools login`).
 - Your app's own toolchain: JDK and Android SDK, Node.js for React Native, Xcode for iOS.
-- Node.js 24 or newer for `bin/fixcrash` and the hook.
+- Node.js 24 or newer for the `fixcrash` command and the hook.
 - `gh`, logged in, to open pull requests.
 
 ## Try it from a checkout
@@ -116,7 +116,7 @@ Usually it can't, and fixcrash ends with a report:
 ```bash
 git clone https://github.com/krezzoid/fixcrash
 cd your-android-app
-claude --plugin-dir ../fixcrash
+claude --plugin-dir ../fixcrash/plugin
 ```
 
 The plugin's options (Firebase app id, project directory, release tag pattern, budgets) default to an app at the repository root, with the app id read from `google-services.json` or `GoogleService-Info.plist`.
@@ -141,7 +141,7 @@ In Claude Code:
 | 4 | Eval on the testbed: [results](docs/EVAL.md) | ✅ |
 | 5 | iOS (Swift): UIKit and SwiftUI testbeds, xcodebuild runner, eval | ✅ |
 | 6 | React Native: Jest runner, JS stack symbolication, skills, eval: [results](docs/EVAL.md#react-native) | ✅ |
-| 7 | Publish: public repository and marketplace, website, Anthropic's plugin directory | next |
+| 7 | Publish: public repository and marketplace, website, Anthropic's plugin directory | in progress |
 
 Details: [docs/PLAN.md](docs/PLAN.md). Eval results: [docs/EVAL.md](docs/EVAL.md). Landscape, data, risks and open questions: [docs/RESEARCH.md](docs/RESEARCH.md).
 

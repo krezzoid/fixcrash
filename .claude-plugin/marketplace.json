@@ -8,7 +8,7 @@
   "plugins": [
     {
       "name": "fixcrash",
-      "source": "./",
+      "source": "./plugin",
       "description": "Turns a Firebase Crashlytics crash into a proven fix, or an honest report when it can't reproduce it."
     }
   ]

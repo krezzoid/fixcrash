@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
-import { findShortcuts, shortcutReason } from '../src/shortcut.ts';
+import { findShortcuts, shortcutReason } from '../plugin/src/shortcut.ts';
 
 const whats = (text: string) => findShortcuts('T.kt', text, 'all').map((s) => s.what);
 

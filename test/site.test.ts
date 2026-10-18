@@ -1,8 +1,8 @@
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
-import { openProject, resolveSite, runContext } from '../src/run.ts';
-import type { Runner } from '../src/runner.ts';
-import type { Expected, Frame } from '../src/stack.ts';
+import { openProject, resolveSite, runContext } from '../plugin/src/run.ts';
+import type { Runner } from '../plugin/src/runner.ts';
+import type { Expected, Frame } from '../plugin/src/stack.ts';
 import { crashingProject, fakeRunner, PARSER } from './helpers.ts';
 
 const SITE = { image: 'App', address: 29516, simulator: true };

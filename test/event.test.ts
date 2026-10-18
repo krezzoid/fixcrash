@@ -3,7 +3,7 @@ import { readFileSync } from 'node:fs';
 import { test } from 'node:test';
 import {
   expectationOf, parseEventExceptions, parseEvents, parseFlatMap, redactText, redactToolOutput, RULES, toCrashEvent,
-} from '../src/event.ts';
+} from '../plugin/src/event.ts';
 
 const fixture = (name: string) => readFileSync(new URL(`./fixtures/crashlytics/${name}`, import.meta.url), 'utf8');
 

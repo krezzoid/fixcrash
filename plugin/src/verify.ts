@@ -47,9 +47,9 @@ export interface VerifyResult {
   receiptPath?: string;
 }
 
-function packageVersion(): string {
-  const pkg = JSON.parse(readFileSync(new URL('../package.json', import.meta.url), 'utf8')) as { version: string };
-  return pkg.version;
+function pluginVersion(): string {
+  const manifest = JSON.parse(readFileSync(new URL('../.claude-plugin/plugin.json', import.meta.url), 'utf8')) as { version: string };
+  return manifest.version;
 }
 
 export function verify(opts: VerifyOptions): VerifyResult {
@@ -178,7 +178,7 @@ export function verify(opts: VerifyOptions): VerifyResult {
       // Log paths relative to the git directory: the receipt feeds the PR body.
       runs: runs.map((r) => ({ ...r, log: relative(common, r.log) })),
       createdAt: new Date().toISOString(),
-      fixcrash: packageVersion(),
+      fixcrash: pluginVersion(),
     };
     const path = writeReceipt(common, receipt);
     log(`VERIFIED: receipt ${path}`);

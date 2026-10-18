@@ -1,12 +1,12 @@
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 import { test } from 'node:test';
-import { selectCases } from '../src/junit.ts';
-import { matchFailure } from '../src/stack.ts';
+import { selectCases } from '../plugin/src/junit.ts';
+import { matchFailure } from '../plugin/src/stack.ts';
 import {
   crashLogsOf, parseAtos, parseCrashLog, parseOpenStep, pickScheme, pickSimulator, resultBundles, testCasesOf, testTargetOf, testTargetsOf,
   xcodebuild,
-} from '../src/xcode.ts';
+} from '../plugin/src/xcode.ts';
 import { tempDir, writeFiles } from './helpers.ts';
 
 const fixture = (name: string) => readFileSync(new URL(`./fixtures/xcode/${name}`, import.meta.url), 'utf8');

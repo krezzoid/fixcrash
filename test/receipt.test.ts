@@ -2,7 +2,7 @@ import assert from 'node:assert/strict';
 import { mkdirSync, writeFileSync } from 'node:fs';
 import { dirname } from 'node:path';
 import { test } from 'node:test';
-import { checkReceipt, receiptPath, writeReceipt, type Receipt, type RunRecord } from '../src/receipt.ts';
+import { checkReceipt, receiptPath, writeReceipt, type Receipt, type RunRecord } from '../plugin/src/receipt.ts';
 import { tempDir } from './helpers.ts';
 
 const HEAD = 'a'.repeat(40);

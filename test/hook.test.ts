@@ -2,9 +2,9 @@ import assert from 'node:assert/strict';
 import { existsSync, readFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { test } from 'node:test';
-import { handle, isTestPath, shellPr, touchesState, type HookInput, type HookOutput } from '../src/hook.ts';
-import { readRecord } from '../src/record.ts';
-import { writeReceipt, type Receipt } from '../src/receipt.ts';
+import { handle, isTestPath, shellPr, touchesState, type HookInput, type HookOutput } from '../plugin/src/hook.ts';
+import { readRecord } from '../plugin/src/record.ts';
+import { writeReceipt, type Receipt } from '../plugin/src/receipt.ts';
 import { commit, initRepo, sh, tempDir } from './helpers.ts';
 
 const fixture = (name: string) => readFileSync(new URL(`./fixtures/crashlytics/${name}`, import.meta.url), 'utf8');

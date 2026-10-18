@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
-import { commitForVersion, tagCandidates, VersionError } from '../src/version.ts';
+import { commitForVersion, tagCandidates, VersionError } from '../plugin/src/version.ts';
 import { commit, initRepo, sh, tempDir } from './helpers.ts';
 
 function repoWithTags(t: Parameters<typeof tempDir>[0]) {

@@ -7,14 +7,14 @@ import { chmodSync, existsSync, readFileSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { test } from 'node:test';
 import { fileURLToPath } from 'node:url';
-import { expectationOf, parseEvents, parseJsError, toCrashEvent } from '../src/event.ts';
-import { movedLine } from '../src/git.ts';
-import { isJestProject, jest, parseJestJson, parseSymbolicated, parseV8Stack, splitTestId } from '../src/jest.ts';
-import { selectCases } from '../src/junit.ts';
-import { readRecord, recordEvent, resolveExpectation } from '../src/record.ts';
-import { checkRunnerFits, jsExpectedAt, worktreePath, type Project } from '../src/run.ts';
-import { gradle } from '../src/runner.ts';
-import { matchJsFailure, type Expected, type Frame } from '../src/stack.ts';
+import { expectationOf, parseEvents, parseJsError, toCrashEvent } from '../plugin/src/event.ts';
+import { movedLine } from '../plugin/src/git.ts';
+import { isJestProject, jest, parseJestJson, parseSymbolicated, parseV8Stack, splitTestId } from '../plugin/src/jest.ts';
+import { selectCases } from '../plugin/src/junit.ts';
+import { readRecord, recordEvent, resolveExpectation } from '../plugin/src/record.ts';
+import { checkRunnerFits, jsExpectedAt, worktreePath, type Project } from '../plugin/src/run.ts';
+import { gradle } from '../plugin/src/runner.ts';
+import { matchJsFailure, type Expected, type Frame } from '../plugin/src/stack.ts';
 import { commit, initRepo, sh, tempDir, writeFiles } from './helpers.ts';
 
 const fixture = (name: string) => readFileSync(new URL(`./fixtures/crashlytics/${name}`, import.meta.url), 'utf8');
@@ -259,7 +259,7 @@ test("puts a JS project's worktree outside .git, where Jest and Metro look", (t)
 
 // --- node_modules (ADR-0005) -------------------------------------------------------
 
-const RNBUILD = fileURLToPath(new URL('../src/rnbuild.ts', import.meta.url));
+const RNBUILD = fileURLToPath(new URL('../plugin/src/rnbuild.ts', import.meta.url));
 
 test('installs node_modules offline once per lockfile, and only with npm', (t) => {
   const dir = tempDir(t);

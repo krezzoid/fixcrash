@@ -7,12 +7,12 @@ import { chmodSync, existsSync, mkdirSync, readFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { test } from 'node:test';
 import { fileURLToPath } from 'node:url';
-import { parseJsError, type CrashEvent } from '../src/event.ts';
-import { checkReceipt } from '../src/receipt.ts';
-import { recordEvent } from '../src/record.ts';
-import { reproduce } from '../src/reproduce.ts';
-import { symbolicateIssue } from '../src/symbolicate.ts';
-import { verify } from '../src/verify.ts';
+import { parseJsError, type CrashEvent } from '../plugin/src/event.ts';
+import { checkReceipt } from '../plugin/src/receipt.ts';
+import { recordEvent } from '../plugin/src/record.ts';
+import { reproduce } from '../plugin/src/reproduce.ts';
+import { symbolicateIssue } from '../plugin/src/symbolicate.ts';
+import { verify } from '../plugin/src/verify.ts';
 import { commit, initRepo, sh, tempDir, writeFiles } from './helpers.ts';
 
 type T = Parameters<typeof tempDir>[0];
