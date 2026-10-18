@@ -4,6 +4,8 @@ Versions follow [semantic versioning](https://semver.org). The version is `versi
 
 ## Unreleased
 
+## 0.1.0 (2026-10-18)
+
 The first release.
 
 ### Added
