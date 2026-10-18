@@ -11,6 +11,10 @@ If it can't reproduce the crash, it says so: what it tried, what it suspects, an
 
 > **Status: evaluated on testbeds, not yet on a production app.** On the Android, iOS (UIKit and SwiftUI) and React Native testbeds, every seeded crash a unit test can reach ended in a verified pull request, and every one it can't ended in a report and no pull request, in one to ten minutes of agent time for about $1 or less each. An earlier Android run got a pull request through with a test that reached the crash by reflection; such tests are now refused ([docs/EVAL.md](docs/EVAL.md)). Not published yet. See [Roadmap](#roadmap).
 
+[![fixcrash's summary after a fix: the test fails at the version that crashed and at the commit before the fix, and passes with the fix, with all 4 tests green](docs/demo.jpg)](https://fixcrash.app/#demo)
+
+[Watch it run](https://fixcrash.app/#demo), 75 seconds: `/fixcrash:fix` on the Android testbed takes a parser crash from Crashlytics to a verified pull request, then ends a lifecycle crash it can't reproduce with a report.
+
 ## Why
 
 AI crash tools explain a crash, suggest a diff, or open a pull request. None of them show that the change fixes *this* crash. fixcrash makes that the only way to get a PR, and checks it in code rather than by the model's word:
