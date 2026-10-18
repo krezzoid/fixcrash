@@ -4,6 +4,8 @@ Versions follow [semantic versioning](https://semver.org). The version is `versi
 
 ## Unreleased
 
+## 0.1.1 (2026-10-18)
+
 ### Changed
 
 - The plugin's README: examples, troubleshooting, and a privacy section. `plugin.json` links the privacy policy, https://fixcrash.app/privacy.
