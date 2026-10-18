@@ -1,6 +1,6 @@
 # fixcrash — eval
 
-`/fixcrash:fix` on the seeded crashes of each testbed, run as each platform was built: Android, then iOS, then a SwiftUI app, then React Native. What the findings left open is in [LIMITS.md](LIMITS.md).
+`/fixcrash:fix` on the seeded crashes of each testbed, run as each platform was built: Android, then iOS, then a SwiftUI app, then React Native; then once more [installed from GitHub](#installed-from-github), as users get it. What the findings left open is in [LIMITS.md](LIMITS.md).
 
 # Android
 
@@ -154,3 +154,33 @@ Claude Code 2.1.302, `claude-opus-5-5`, firebase-tools 15.32.1, React Native 0.8
    - The Android parser test asserts only that parsing doesn't throw, as on Android.
    - The render fix shows "5 tags" above 3 rows, and the async fix gives an empty inbox a placeholder headline. Each is a product choice the PR names.
    - The render session added an assertion after the reproducer's run, and `verify` proved the edited test.
+
+# Installed from GitHub
+
+## Setup
+
+- **The install**, as the README gives it, before the repository went public: `claude plugin marketplace add krezzoid/fixcrash` over SSH, then `claude plugin install fixcrash@fixcrash`, at user scope. No `--plugin-dir`.
+  - The marketplace is a shallow clone of the repository: 2.7 MB on disk, 240 files. With `--sparse .claude-plugin plugin` it is a partial clone of the two folders and the root's files: 620 KB, 41 files ([ADR-0006](adr/0006-plugin-in-its-own-folder.md)).
+  - The installed copy, `~/.claude/plugins/cache/fixcrash/fixcrash/0.1.0/`, is 272 KB.
+- **The apps.** Fresh clones of the Android and React Native testbed copies, with their untracked Firebase configs. The Android parser crash was triggered again from the `v1.0` APK, so its event was minutes old.
+- **Options.** None were set for the Android run. Before the React Native run, the app id was set through `/plugin`, Installed, fixcrash, Configure options, and the other fields left empty.
+- **Runs** as before: a fresh session in auto mode, `/fixcrash:fix <issue>`, for React Native with the JS error: `RangeError at src/updates.ts:13`.
+
+## Results, 2026-10-18
+
+Claude Code 2.1.302, `claude-opus-5-5`, fixcrash 0.1.0, firebase-tools 15.32.1.
+
+| Scenario | Options | Expected | Outcome | `reproduce` runs | `verify` runs | PR | Agent time | Tool calls | Cost |
+|----------|---------|----------|---------|------------------|---------------|----|------------|------------|------|
+| Android parser | none set | PR | ✅ PR | 1 | 1 | yes | 2m 44s | 20 (4 in the reproducer) | $0.89 |
+| React Native engine | the app id | report, no PR | ✅ report, no PR | 1 | - | no | 2m 13s | 18 (6 in the reproducer) | $0.93 |
+
+## Findings
+
+1. **The installed plugin ran as the checkout does.** `fixcrash` ran by its bare name from `PATH`, the Firebase server's tools came as `mcp__plugin_fixcrash_firebase__*`, the hook recorded each event's expected failure, and the guard let the PR through on its receipt. No hook denials. The PR's footer names fixcrash 0.1.0.
+2. **The install doesn't ask for options.** `claude plugin install` printed that five options weren't set and how to set them, and no session asked for them. The README said Claude Code would ask; it now says how to set them.
+3. **An option nobody set stays a placeholder.**
+   - In the Android run every `${user_config.*}` reached the skill as written, as with `--plugin-dir` (Android, finding 3). The skill's defaults took over: `v{display}`, the project at the root, the app id from `fixcrash app-id`, and no tool call went to looking for them.
+   - In the React Native run the app id set through `/plugin` was substituted, and the session used it without `fixcrash app-id`. The four fields left empty stayed placeholders: saving the dialog doesn't store the defaults.
+4. **Options are the user's, not the repository's.** Claude Code reads them from user settings only, so a cloned repository can't set them. An app id set for one app is then used in every repository: an Android run after the React Native one would have read the wrong app.
+5. **The PR body was edited after the guard**, as on iOS (finding 5): the session appended Claude Code's attribution line with `gh pr edit`.

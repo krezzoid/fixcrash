@@ -87,11 +87,13 @@ A loses on the install itself. B and C install the same files. C buys one fewer 
   - commands change: `claude --plugin-dir plugin`, `plugin/bin/fixcrash`;
   - docs written before 7.1 name the plugin's files from the root (`src/hook.ts` is `plugin/src/hook.ts`);
   - two READMEs and two LICENSE files from 7.2 on.
-- Unchanged: users who add the marketplace still clone the whole repository (1.5 MiB in 231 files, plus 0.6 MiB of history) into `~/.claude/plugins/marketplaces/fixcrash/`. Claude Code doesn't load it. `--sparse .claude-plugin plugin` would limit the clone; untried.
+- Unchanged: users who add the marketplace still clone the repository into `~/.claude/plugins/marketplaces/fixcrash/`, and Claude Code doesn't load it.
+  - Measured on 2026-10-18 from GitHub over SSH (Claude Code 2.1.302): a shallow clone, 2.7 MB on disk in 240 files. With `--sparse .claude-plugin plugin`, a partial clone (`blob:none`) of those two folders and the root's files: 620 KB in 41 files.
+  - The README keeps the plain command. The clone is small, and sparse paths, saved in the user's settings, would tie every install to this layout.
 - Revisit: switch to C if the directory's review of the hook script delays releases, or if the directory turns it into a block.
 
 ## Action items
 
 1. [x] Move the plugin into `plugin/`. Point the marketplace entry at it, add the plugin's `package.json`, and read the receipt's version from `plugin.json`. Add `test/layout.test.ts`, and update CLAUDE.md and README.
 2. [x] `plugin/README.md` and `plugin/LICENSE`.
-3. [ ] Install from the GitHub repository with and without `--sparse .claude-plugin plugin`, and measure the marketplace clone, before the repository goes public.
+3. [x] Install from the GitHub repository with and without `--sparse .claude-plugin plugin`, and measure the marketplace clone, before the repository goes public. Measured above; the installed plugin's eval is in [EVAL.md](../EVAL.md#installed-from-github).

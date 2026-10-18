@@ -25,7 +25,7 @@ claude plugin marketplace add krezzoid/fixcrash
 claude plugin install fixcrash@fixcrash
 ```
 
-Claude Code asks for the plugin's options when you enable it. Every option has a default:
+The install doesn't ask for the plugin's options, and each has a default. To set one, open `/plugin` in Claude Code and choose Installed, fixcrash, Configure options. Options live in your user settings and hold in every repository you open: with several apps, leave the app id empty or give it in the command, `/fixcrash:fix <issue> <app id>`.
 
 | Option | Default | What it is |
 |--------|---------|------------|

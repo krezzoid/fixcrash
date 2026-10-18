@@ -136,7 +136,7 @@ claude plugin marketplace add krezzoid/fixcrash
 claude plugin install fixcrash@fixcrash
 ```
 
-Claude Code asks for the plugin's options when you enable it; [plugin/README.md](plugin/README.md#install) lists them with their defaults.
+The install doesn't ask for the plugin's options: each has a default. [plugin/README.md](plugin/README.md#install) lists them and how to set one.
 
 Each [release](https://github.com/krezzoid/fixcrash/releases) also carries the plugin as a zip, which loads for one session without a marketplace: `claude --plugin-url <the zip's URL>`.
 

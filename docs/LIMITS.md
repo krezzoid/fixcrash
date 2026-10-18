@@ -7,11 +7,16 @@ Where fixcrash's checks stop, what it hasn't been tried on, and what it doesn't 
 - **The crashing commit is the agent's word.** `verify` takes `--base` from the agent. It could check it against the build stamp the hook recorded from the event, when there is one; it doesn't yet.
 - **The hook reads commands as text.** It spots writes to fixcrash's state and pull request commands by their text. A command that builds the path or the command in a variable gets past it, and so does a pull request opened on the web after `git push`. It guards against a careless agent, not a hostile one.
 - **The guard turns on per repository**, for sessions that read crash events and for `fixcrash/` branches. A pull request from another branch in a later session isn't checked.
+- **The guard checks creating a pull request, not editing one.** A body changed with `gh pr edit` afterwards isn't checked. Sessions do it to append Claude Code's attribution line ([eval](EVAL.md#installed-from-github), finding 5).
 - **The reproducer's shell can still edit app code** (`sed -i`). Only its Write and Edit tools are held to test files.
 - **The shortcut check reads the new lines of the changed test files.** A mock of the class under test (Mockito and MockK build it without its constructor) is caught by the reproducer's rules only, not in code. A shortcut in a helper outside the changed test files, or written another way, gets past it.
 - **The same exception at the same frame is necessary, not sufficient.** It can come from an input the app never gets. Only the reproducer's judgment rules that out ([eval](EVAL.md#react-native), React Native, finding 3).
 - **A NOT REPRODUCED answer can come without a single `fixcrash reproduce` run.** That is fine with a concrete reason, but a lazy answer looks the same.
 - **Test runs aren't isolated from the network.** Gradle runs `--offline` and npm installs from its cache, but the tests are the app's own code and can reach whatever it reaches.
+
+## Options
+
+- **Options are per user.** Claude Code keeps plugin options in user settings only, so an app id or project directory set for one repository holds in all of them. fixcrash doesn't check a set app id against the repository's Firebase config yet ([eval](EVAL.md#installed-from-github), finding 4).
 
 ## Android
 
