@@ -1,5 +1,6 @@
 # Unit tests, type checks and the plugin's validation, on every push to master
-# and every pull request. Actions are pinned by tag, Claude Code by version.
+# and every pull request, and before every release (release.yml calls it).
+# Actions are pinned by tag, Claude Code by version.
 name: CI
 
 on:
@@ -7,6 +8,7 @@ on:
     branches: [master]
   pull_request:
   workflow_dispatch:
+  workflow_call:
 
 permissions:
   contents: read

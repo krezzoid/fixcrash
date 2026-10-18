@@ -35,6 +35,8 @@ Claude Code asks for the plugin's options when you enable it. Every option has a
 | Hypotheses per crash | 3 | How many root causes the reproducer may try before it reports |
 | Test attempts per crash | 5 | How many test runs at the crashing version it may make before it reports |
 
+Each [release](https://github.com/krezzoid/fixcrash/releases) also carries the plugin as a zip, which loads for one session without a marketplace: `claude --plugin-url <the zip's URL>`.
+
 ## What fixcrash runs, sends and writes
 
 ### Runs

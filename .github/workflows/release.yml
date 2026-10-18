@@ -1,0 +1,97 @@
+# Releases fixcrash, from Actions → Release → Run workflow on master:
+#   1. CI (ci.yml) on the commit;
+#   2. scripts/release.ts: the next version after the latest v* tag goes into
+#      plugin.json, and CHANGELOG.md's Unreleased section moves under it;
+#   3. a "Release <version>" commit on master and its tag v<version>;
+#   4. a GitHub release with that section as notes, the plugin folder as
+#      fixcrash-<version>.zip (claude --plugin-dir or --plugin-url load it),
+#      and its SHA-256.
+# A dry run, the default, does all of it but the push and the release, and
+# keeps the zip, the checksum and the notes as the run's artifact.
+# After a real one, master has a commit that local checkouts don't: pull first.
+name: Release
+
+on:
+  workflow_dispatch:
+    inputs:
+      bump:
+        description: Part of the version to raise
+        type: choice
+        options: [patch, minor, major]
+        default: patch
+      dry_run:
+        description: Dry run, nothing pushed or published
+        type: boolean
+        default: true
+
+permissions:
+  contents: read
+
+concurrency:
+  group: release
+  cancel-in-progress: false
+
+jobs:
+  check:
+    if: github.ref == 'refs/heads/master'
+    uses: ./.github/workflows/ci.yml
+
+  release:
+    needs: check
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    permissions:
+      contents: write
+    env:
+      BUMP: ${{ inputs.bump }}
+      DRY_RUN: ${{ inputs.dry_run }}
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          fetch-depth: 0
+      - uses: actions/setup-node@v7
+        with:
+          node-version: 24
+      - name: Raise the version and date the changelog
+        run: |
+          version=$(node scripts/release.ts "$BUMP" "$RUNNER_TEMP/notes.md")
+          echo "VERSION=$version" >> "$GITHUB_ENV"
+      - name: Commit and tag
+        run: |
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git commit --quiet --message "Release $VERSION" -- plugin/.claude-plugin/plugin.json CHANGELOG.md
+          git tag --annotate "v$VERSION" --message "fixcrash $VERSION"
+          git show --stat HEAD
+      - name: Build the plugin archive
+        run: |
+          mkdir "$RUNNER_TEMP/dist"
+          git archive --format=zip --prefix="fixcrash-$VERSION/" --output="$RUNNER_TEMP/dist/fixcrash-$VERSION.zip" "v$VERSION:plugin"
+          cd "$RUNNER_TEMP/dist" && sha256sum "fixcrash-$VERSION.zip" | tee SHA256SUMS
+      - name: Push the commit and the tag, and publish the release
+        if: ${{ !inputs.dry_run }}
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          git push --atomic origin HEAD:master "v$VERSION"
+          gh release create "v$VERSION" "$RUNNER_TEMP"/dist/* --verify-tag \
+            --title "fixcrash $VERSION" --notes-file "$RUNNER_TEMP/notes.md"
+      - name: Keep what the release would have published
+        if: ${{ inputs.dry_run }}
+        uses: actions/upload-artifact@v7
+        with:
+          name: fixcrash-${{ env.VERSION }}-dry-run
+          path: |
+            ${{ runner.temp }}/dist
+            ${{ runner.temp }}/notes.md
+      - name: Summary
+        run: |
+          {
+            if [ "$DRY_RUN" = true ]; then
+              echo "## Dry run: fixcrash $VERSION, nothing pushed or published"
+            else
+              echo "## fixcrash $VERSION released"
+            fi
+            echo
+            cat "$RUNNER_TEMP/notes.md"
+          } >> "$GITHUB_STEP_SUMMARY"

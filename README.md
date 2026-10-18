@@ -138,6 +138,8 @@ claude plugin install fixcrash@fixcrash
 
 Claude Code asks for the plugin's options when you enable it; [plugin/README.md](plugin/README.md#install) lists them with their defaults.
 
+Each [release](https://github.com/krezzoid/fixcrash/releases) also carries the plugin as a zip, which loads for one session without a marketplace: `claude --plugin-url <the zip's URL>`.
+
 ## Roadmap
 
 | # | Step | State |
@@ -155,7 +157,7 @@ Eval results: [docs/EVAL.md](docs/EVAL.md). Known limits, and what isn't done ye
 
 ## Contributing
 
-Rules for code in this repository are in [CLAUDE.md](CLAUDE.md). The plugin is in `plugin/`, which is all an install copies; it is developed against `testbed/`, sample apps with seeded crashes that double as the eval. Changes are listed in [CHANGELOG.md](CHANGELOG.md). To report a vulnerability, see [SECURITY.md](SECURITY.md).
+Rules for code in this repository are in [CLAUDE.md](CLAUDE.md). The plugin is in `plugin/`, which is all an install copies; it is developed against `testbed/`, sample apps with seeded crashes that double as the eval. Changes go under Unreleased in [CHANGELOG.md](CHANGELOG.md), and a release, from the Release workflow, publishes them. To report a vulnerability, see [SECURITY.md](SECURITY.md).
 
 ## Origin
 

@@ -1,8 +1,8 @@
 # Changelog
 
-Versions follow [semantic versioning](https://semver.org). The version is `version` in `plugin/.claude-plugin/plugin.json`, raised with every release: Claude Code updates an installed plugin only when it changes.
+Versions follow [semantic versioning](https://semver.org). The version is `version` in `plugin/.claude-plugin/plugin.json`: Claude Code updates an installed plugin only when it changes. Changes go under Unreleased as they land. A release, from the Release workflow, raises the version, moves them under it, and publishes them as the release's notes.
 
-## 0.1.0 (unreleased)
+## Unreleased
 
 The first release.
 
@@ -24,3 +24,4 @@ The first release.
   - Android: Gradle, JVM unit tests and Robolectric;
   - iOS: `xcodebuild`, XCTest and Swift Testing, with inlined frames recovered from a Release build;
   - React Native JS errors: Jest, placed in the sources with the crashing commit's bundle and source map.
+- Each release carries the plugin as a zip, which `claude --plugin-dir` and `--plugin-url` load.

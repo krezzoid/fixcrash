@@ -32,7 +32,8 @@ When you find a limit, or consciously postpone something, add it to `docs/LIMITS
   - work on a branch;
   - propose the commit and wait for "да, коммить";
   - no `Co-Authored-By` trailer or other attribution lines in commit messages;
-  - **never push**: Ilya merges with `git switch master && git merge --ff-only <branch>` and pushes himself.
+  - **never push**: Ilya merges with `git switch master && git merge --ff-only <branch>` and pushes himself;
+  - a release is a commit the Release workflow makes on master: after one, master needs `git pull --ff-only` before the next merge.
 - The repo commits under `krezzoid@users.noreply.github.com` (repo-local git config). Never commit a personal email address.
 
 ## What this is, and what it is not
@@ -61,7 +62,9 @@ plugin/                          the plugin: all an install copies into the user
 test/                            node:test unit tests; test/layout.test.ts keeps the plugin folder self-contained
 package.json, tsconfig.json      dev only (tsc for type checks); no runtime dependencies
 LICENSE, SECURITY.md, CHANGELOG.md  MIT; how to report a vulnerability; changes per version
-.github/workflows/ci.yml         npm test, typecheck and plugin validate --strict on pushes to master and pull requests
+.github/workflows/ci.yml         npm test, typecheck and plugin validate --strict on pushes to master, pull requests and releases
+.github/workflows/release.yml    Actions → Release: CI, the next version, the changelog dated, a commit and tag on master, a GitHub release with the plugin as a zip
+scripts/release.ts               the release's version and changelog step
 .git/fixcrash/                   state in the user's repo: worktree, receipts/, events/, attempts/, sessions/, logs, cache, lock
 ~/.cache/fixcrash/worktrees/     a JS project's worktree: Metro and Jest skip paths with .git in them (ADR-0005)
 testbed/android/                 sample app with seeded crashes, used as the eval
@@ -127,6 +130,7 @@ node eval/metrics.ts <project dir>  # per session: time, tool calls, reproduced,
 claude plugin validate --strict plugin/.claude-plugin/plugin.json   # the plugin
 claude plugin validate --strict .   # the marketplace, then the plugin it lists (Claude Code 2.1.294+)
 claude --plugin-dir plugin          # Claude Code with the plugin loaded from this checkout
+gh workflow run release.yml -f bump=patch   # a release from master: a dry run unless -f dry_run=false
 ```
 
 `reproduce` and `verify` take the expected failure from the event the hook recorded; `--exception` and `--frame` stand in when there is none, and a PR then needs a re-verify. With Gradle they need a JDK: `JAVA_HOME`, `java` on PATH, or Android Studio's bundled JDK, which they find by themselves. With an Xcode project they need Xcode (selected, or at `/Applications/Xcode.app`) and an iPhone simulator; they pick the shared scheme and the simulator themselves, and `FIXCRASH_XCODE_SCHEME` and `FIXCRASH_XCODE_DESTINATION` override them. For an iOS event they first build the crashing commit in Release to find the frames inlined into the blame frame (ADR-0002), once per commit. In a React Native app's root (a `package.json` with Jest) they run Jest, and `--test` is `<test file>::<the test's full name>`. A JS error needs its recorded event: they build the crashing commit's bundle and source map for the event's platform to place it in the sources (ADR-0004), with `node_modules` installed by `npm ci --offline` from npm's cache (ADR-0005). A native crash in an RN app goes to `--project-dir android` or `ios`.
@@ -137,5 +141,5 @@ claude --plugin-dir plugin          # Claude Code with the plugin loaded from th
 - `claude plugin validate --strict plugin/.claude-plugin/plugin.json` and `claude plugin validate --strict .` pass.
 - At least one testbed scenario still runs end to end.
 - `plugin/README.md` is updated if what the plugin runs, sends, fetches or writes changed: Anthropic's directory scans for anything it doesn't disclose.
-- A change users see gets a line in `CHANGELOG.md`. A release raises `version` in `plugin/.claude-plugin/plugin.json`: installs update only when it changes.
+- A change users see gets a line under `## Unreleased` in `CHANGELOG.md`. Releases come only from the Release workflow, which raises `version` in `plugin/.claude-plugin/plugin.json` (installs update only when it changes): don't raise it by hand.
 - A decision gets an ADR in `docs/adr/` (`NNNN-title.md`). A limit found, or a piece postponed, gets a line in `docs/LIMITS.md`. `README.md` is updated if what it shows changed.
