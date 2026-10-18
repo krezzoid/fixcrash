@@ -9,7 +9,7 @@ A Claude Code plugin that turns a Firebase Crashlytics crash into a **proven** f
 
 If it can't reproduce the crash, it says so: what it tried, what it suspects, and what data is missing. It opens no pull request.
 
-> **Status: evaluated on testbeds, not yet on a production app.** On the Android, iOS (UIKit and SwiftUI) and React Native testbeds, every seeded crash a unit test can reach ended in a verified pull request, and every one it can't ended in a report and no pull request, in one to ten minutes of agent time for about $1 or less each. An earlier Android run got a pull request through with a test that reached the crash by reflection; such tests are now refused ([docs/EVAL.md](docs/EVAL.md)). Not published yet. See [Roadmap](#roadmap).
+> **Status: evaluated on testbeds, not yet on a production app.** On the Android, iOS (UIKit and SwiftUI) and React Native testbeds, every seeded crash a unit test can reach ended in a verified pull request, and every one it can't ended in a report and no pull request, in one to ten minutes of agent time for about $1 or less each. An earlier Android run got a pull request through with a test that reached the crash by reflection; such tests are now refused ([docs/EVAL.md](docs/EVAL.md)).
 
 [![fixcrash's summary after a fix: the test fails at the version that crashed and at the commit before the fix, and passes with the fix, with all 4 tests green](docs/demo.jpg)](https://fixcrash.app/#demo)
 
@@ -123,17 +123,7 @@ The full list, with every command: [plugin/README.md](plugin/README.md#what-fixc
 - Node.js 24 or newer for the `fixcrash` command and the hook.
 - `gh`, logged in, to open pull requests.
 
-## Try it from a checkout
-
-```bash
-git clone https://github.com/krezzoid/fixcrash
-cd your-android-app
-claude --plugin-dir ../fixcrash/plugin
-```
-
-The plugin's options (Firebase app id, project directory, release tag pattern, budgets) default to an app at the repository root, with the app id read from `google-services.json` or `GoogleService-Info.plist`.
-
-## Install (once published)
+## Install
 
 ```bash
 claude plugin marketplace add krezzoid/fixcrash
@@ -143,6 +133,16 @@ claude plugin install fixcrash@fixcrash
 The install doesn't ask for the plugin's options: each has a default. [plugin/README.md](plugin/README.md#install) lists them and how to set one.
 
 Each [release](https://github.com/krezzoid/fixcrash/releases) also carries the plugin as a zip, which loads for one session without a marketplace: `claude --plugin-url <the zip's URL>`.
+
+## Try it from a checkout
+
+```bash
+git clone https://github.com/krezzoid/fixcrash
+cd your-android-app
+claude --plugin-dir ../fixcrash/plugin
+```
+
+The plugin's options (Firebase app id, project directory, release tag pattern, budgets) default to an app at the repository root, with the app id read from `google-services.json` or `GoogleService-Info.plist`.
 
 ## Roadmap
 
