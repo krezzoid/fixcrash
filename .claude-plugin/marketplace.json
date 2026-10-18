@@ -3,7 +3,7 @@
   "description": "fixcrash: proven fixes for Firebase Crashlytics crashes",
   "owner": {
     "name": "Ilya Seliverstov",
-    "url": "https://github.com/krezzoid"
+    "url": "https://fixcrash.app"
   },
   "plugins": [
     {
