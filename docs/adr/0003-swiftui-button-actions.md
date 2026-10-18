@@ -6,8 +6,8 @@
 
 ## Context
 
-- In SwiftUI, an action's logic often sits in the button's closure, not in a model: `Button("Archive") { archived.append(selected!) }`. The SwiftUI testbed's `action` scenario crashes there, with nothing selected; the blame frame is `closure #1 in closure #2 in ArchiveView.body.getter` (`docs/RESEARCH.md` §7, step 5.7.2).
-- A hosted unit test can render the screen as the app does, in a window on the app's scene (step 5.7.3). It can't tap. The toolbar button is a SwiftUI view inside a `UIKitBarItemHost`: no `UIControl`, no `UIBarButtonItem`, and SwiftUI's own gestures handle the touch. UIKit has no public way to send a touch.
+- In SwiftUI, an action's logic often sits in the button's closure, not in a model: `Button("Archive") { archived.append(selected!) }`. The SwiftUI testbed's `action` scenario crashes there, with nothing selected; the blame frame is `closure #1 in closure #2 in ArchiveView.body.getter`.
+- A hosted unit test can render the screen as the app does, in a window on the app's scene. It can't tap. The toolbar button is a SwiftUI view inside a `UIKitBarItemHost`: no `UIControl`, no `UIBarButtonItem`, and SwiftUI's own gestures handle the touch. UIKit has no public way to send a touch.
 - SwiftUI exposes its views as accessibility elements only while accessibility is on, and nothing public turns it on in a test process. libAccessibility's private `_AXSApplicationAccessibilitySetEnabled(1)` and `_AXSSetAutomationEnabled(1)` do. After them, `accessibilityActivate()` on the element labeled "Archive" runs the action: the test's crash log has the blame frame, called from `ButtonAction.callAsFunction()` through `AccessibilityButtonModifier`, and fixcrash's check accepts it.
 - That switch is a setting of the simulator, not of the process: it stays on for every later test run until its keys are deleted from `com.apple.Accessibility` and the simulator is rebooted.
 - fixcrash's shortcut check refused the spike's test, but only because the test cast the `dlsym` pointer with `unsafeBitCast`. Declared with `@_silgen_name`, the same calls pass.

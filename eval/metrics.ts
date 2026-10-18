@@ -1,7 +1,8 @@
-// Eval metrics (docs/PLAN.md, step 4), read from Claude Code session transcripts:
+// Eval metrics (docs/EVAL.md), read from Claude Code session transcripts:
 // wall and agent time, tool calls, what fixcrash reproduce and verify said, the
 // pull request, hook denials, tokens. The transcript format is Claude Code's own
-// and undocumented: see docs/RESEARCH.md §7 for what this relies on.
+// and undocumented: what this reads was seen in Claude Code 2.1.293's transcripts
+// (2026-10-08), and may change.
 
 import { existsSync, readdirSync, readFileSync } from 'node:fs';
 import { homedir } from 'node:os';

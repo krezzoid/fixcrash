@@ -151,7 +151,7 @@ Claude Code asks for the plugin's options when you enable it; [plugin/README.md]
 | 6 | React Native: Jest runner, JS stack symbolication, skills, eval: [results](docs/EVAL.md#react-native) | ✅ |
 | 7 | Publish: public repository and marketplace, website, Anthropic's plugin directory | in progress |
 
-Details: [docs/PLAN.md](docs/PLAN.md). Eval results: [docs/EVAL.md](docs/EVAL.md). Landscape, data, risks and open questions: [docs/RESEARCH.md](docs/RESEARCH.md).
+Eval results: [docs/EVAL.md](docs/EVAL.md). Known limits, and what isn't done yet: [docs/LIMITS.md](docs/LIMITS.md). Decisions, with the options considered: [docs/adr/](docs/adr/).
 
 ## Contributing
 

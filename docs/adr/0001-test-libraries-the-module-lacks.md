@@ -12,7 +12,7 @@
 - Robolectric with `fragment-testing` reaches such a crash the way the app does: open the fragment, move it to `DESTROYED`, advance the main looper past the delayed callback.
 - The crashing commit is a past release. A test setup added on `main` today isn't there, so a test that needs it doesn't compile at the crashing commit. Adding the setup on `main` alone helps only crashes from releases built after it.
 - Constraints: proof is enforced in code (rule 1); tests run offline where the build tool allows (rule 8); the plugin works in someone else's repository, so every dependency it adds is a supply-chain and review cost for that team.
-- Unknown: the share of a real app's crashes that need a test library its modules lack (`docs/RESEARCH.md` §9, question 3).
+- Unknown: the share of a real app's crashes that need a test library its modules lack.
 
 ## Decision
 
@@ -75,7 +75,7 @@ B's value hangs on a number we don't have: how many real crashes need a test lib
 
 - Easier: nothing new in `reproduce` and `verify`, no dependency policy to keep current.
 - Harder: in modules without Robolectric, a lifecycle crash ends in a report even when its cause is clear.
-- Revisit: after the first real app (`docs/PLAN.md`, deferred list).
+- Revisit: after the first real app ([known limits](../LIMITS.md#android)).
 
 ## Action items
 

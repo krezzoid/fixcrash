@@ -7,7 +7,7 @@
 //   one retry anyway.
 // - Parallel testing is off: it boots a clone of the simulator for every run.
 // - Results come from the result bundle, and a crashed test's stack from the
-//   crash log attached to it (docs/RESEARCH.md §7, step 5.4).
+//   crash log attached to it.
 
 import { spawnSync } from 'node:child_process';
 import { existsSync, readdirSync, readFileSync } from 'node:fs';

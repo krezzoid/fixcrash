@@ -35,6 +35,6 @@ The script starts the scenario through adb, then relaunches the app and waits wh
 
 ## Notes
 
-- Release builds from this directory carry no git commit: AGP looks for `.git` in the Gradle root only (`docs/RESEARCH.md` §7).
+- Release builds from this directory carry no git commit: AGP looks for `.git` in the Gradle root only.
 - `../copy-android.sh <dest>` copies the app into a git repository of its own, for the eval: without this README and the trigger script, with a release APK that carries the commit tagged `v1.0`, and a later commit on `main`. Install that APK, then trigger the crashes from here.
 - All values in the app are synthetic, including the Crashlytics user id `test-user-0001`.

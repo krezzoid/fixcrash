@@ -8,7 +8,7 @@ A small Swift (UIKit) app with three seeded crashes. fixcrash is developed and e
 | `paging` | Load more, three times | Array slice past the end of the last, partial page | `FeedPager.page(_:)` | yes, XCTest |
 | `lifecycle` | Sync drafts, then leave the app for 30 s | Force unwrap of `nil` in the background task's expiration handler: the upload finished, but the task was never ended | the handler closure in `SyncService.start(completion:)` | no: expected outcome is a report, no PR |
 
-In a Release build `ProfileParser.parse(_:)` and `FeedPager.page(_:)` are inlined into their callers, and Crashlytics drops inlined frames: its issues blame `MainViewController.openProfile()` and `MainViewController.loadMore()` (`docs/RESEARCH.md` §7).
+In a Release build `ProfileParser.parse(_:)` and `FeedPager.page(_:)` are inlined into their callers, and Crashlytics drops inlined frames: its issues blame `MainViewController.openProfile()` and `MainViewController.loadMore()`.
 
 The unit tests in `TestbedTests` pass and miss all three bugs. They run inside the app (a hosted test target), which skips `FirebaseApp.configure()` under XCTest: tests report nothing to Firebase.
 

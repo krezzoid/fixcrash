@@ -17,12 +17,11 @@ Platforms, in order: Android (Kotlin), then iOS (Swift), then React Native.
 
 | File | What it holds |
 |------|---------------|
-| `docs/RESEARCH.md` | Landscape, the gap we fill, data Crashlytics MCP gives, per-platform test loops, plugin mechanics, risks, open questions |
-| `docs/PLAN.md` | Steps, **status table**, deferred list |
-| `docs/EVAL.md` | Eval on the testbed: setup, results per scenario, findings |
+| `docs/EVAL.md` | Eval on the testbeds: setup, results per scenario, findings |
+| `docs/LIMITS.md` | Known limits: where the checks stop, what is untried, what isn't done yet |
 | `docs/adr/` | Decisions: the options considered, the one taken, when to revisit |
 
-At the start of every session, check the status table and the deferred list in `docs/PLAN.md` and continue from the current step. When a step is done, update the table. When something is consciously postponed, add it to the deferred list.
+When you find a limit, or consciously postpone something, add it to `docs/LIMITS.md`.
 
 ## Working with Ilya
 
@@ -77,7 +76,7 @@ eval/metrics.ts                  eval metrics from Claude Code session transcrip
 
 With the plugin loaded (`claude --plugin-dir plugin`), its hook also guards this repository: Bash commands that mention `.git/fixcrash` or `fixcrash/worktrees` are refused, edits included. Edit files with the Edit and Write tools, and leave `.git/fixcrash` to the CLI.
 
-Everything the plugin runs stays inside `plugin/`: an install copies only that folder, so a path that leaves it breaks for users. Docs written before step 7.1 name the plugin's files from the repository root: `src/hook.ts` there is `plugin/src/hook.ts` now.
+Everything the plugin runs stays inside `plugin/`: an install copies only that folder, so a path that leaves it breaks for users.
 
 ## Non-negotiable rules
 
@@ -111,7 +110,7 @@ The Claude Code plugin format and the Firebase MCP tools both change fast, so do
 - code.claude.com/docs: `plugins-reference`, `hooks`, `plugin-evals`;
 - the firebase-tools source: `src/mcp/tools/crashlytics/`, `src/mcp/resources/guides/`, `src/crashlytics/types.ts`.
 
-Record verified findings with a date in `docs/RESEARCH.md` §7 "Verified facts".
+Write down what you verified, with the date and the version, where it is used: in the ADR that relies on it, or in a comment beside the code.
 
 ## Commands
 
@@ -139,4 +138,4 @@ claude --plugin-dir plugin          # Claude Code with the plugin loaded from th
 - At least one testbed scenario still runs end to end.
 - `plugin/README.md` is updated if what the plugin runs, sends, fetches or writes changed: Anthropic's directory scans for anything it doesn't disclose.
 - A change users see gets a line in `CHANGELOG.md`. A release raises `version` in `plugin/.claude-plugin/plugin.json`: installs update only when it changes.
-- `docs/PLAN.md` status is updated if a step moved. A decision gets an ADR in `docs/adr/` (`NNNN-title.md`), not a paragraph in `docs/RESEARCH.md`, which holds verified facts. `README.md` is updated if what it shows changed.
+- A decision gets an ADR in `docs/adr/` (`NNNN-title.md`). A limit found, or a piece postponed, gets a line in `docs/LIMITS.md`. `README.md` is updated if what it shows changed.

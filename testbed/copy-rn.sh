@@ -1,12 +1,12 @@
 #!/usr/bin/env bash
-# Copies testbed/react-native into a git repository of its own, for the eval (docs/PLAN.md, step 6):
+# Copies testbed/react-native into a git repository of its own, for the eval (docs/EVAL.md):
 # the agent works there and can't read the scenario descriptions: README.md and
 # trigger-crash.sh stay behind, and the copy gets a plain README.
 #
 # The copy gets two commits on main:
 #   1. "Initial version", tagged v<versionName>. JS events carry no commit, so the tag
 #      is how fixcrash finds this one. The JS bundle built from it has the same
-#      Hermes bytecode as the testbed's own release builds (docs/RESEARCH.md §7, step 6.4);
+#      Hermes bytecode as the testbed's own release builds;
 #   2. the next version's number, so the crashing commit is not the head of main.
 # It installs node_modules with npm ci, from npm's cache when it can.
 #

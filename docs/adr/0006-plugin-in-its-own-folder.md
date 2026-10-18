@@ -6,8 +6,8 @@
 
 ## Context
 
-- An install copies the plugin folder, the one that holds `.claude-plugin/plugin.json`, into `~/.claude/plugins/cache/<marketplace>/<plugin>/<version>/` and loads that copy. Files outside the folder aren't copied. When the folder has a `package.json` and a lockfile, Claude Code also runs a frozen package install there, and nothing turns it off (`RESEARCH.md` §7, 2026-10-17 and 2026-10-18).
-- Until step 7.1 the plugin folder was the repository root. The plugin's files sat beside the tests, the testbeds, the docs, the eval, and the dev-only `package.json` and `package-lock.json`.
+- An install copies the plugin folder, the one that holds `.claude-plugin/plugin.json`, into `~/.claude/plugins/cache/<marketplace>/<plugin>/<version>/` and loads that copy. Files outside the folder aren't copied. When the folder has a `package.json` and a lockfile, Claude Code also runs a frozen package install there, and nothing turns it off (Claude Code 2.1.302, 2026-10-18).
+- Until this decision the plugin folder was the repository root. The plugin's files sat beside the tests, the testbeds, the docs, the eval, and the dev-only `package.json` and `package-lock.json`.
 - Anthropic's directory reads the plugin folder:
   - it requires a README of 40 words or more and a license in that folder;
   - it holds for a reviewer files of 256 KiB or more, binaries other than images and fonts, and a lockfile install;
@@ -40,7 +40,7 @@
 2. **The root keeps the rest:** `.claude-plugin/marketplace.json` with `"source": "./plugin"`, the tests, the testbeds, the docs, the eval, and the dev `package.json`, lockfile and `tsconfig.json`.
 3. **Nothing in `plugin/` reaches outside it.** `test/layout.test.ts` checks this: no import or file URL that leaves the folder, no lockfile, no symbolic link, no binary, no file of 256 KiB or more.
 4. **One version.** The receipt's fixcrash version comes from `plugin.json`, and the root `package.json` has none. A release raises `plugin.json` alone.
-5. **The plugin folder gets its own `README.md` and `LICENSE`** in step 7.2: the directory reads them there, and installs carry the license.
+5. **The plugin folder gets its own `README.md` and `LICENSE`**: the directory reads them there, and installs carry the license.
 
 ## Options considered
 
@@ -93,5 +93,5 @@ A loses on the install itself. B and C install the same files. C buys one fewer 
 ## Action items
 
 1. [x] Move the plugin into `plugin/`. Point the marketplace entry at it, add the plugin's `package.json`, and read the receipt's version from `plugin.json`. Add `test/layout.test.ts`, and update CLAUDE.md and README.
-2. [x] `plugin/README.md` and `plugin/LICENSE` (step 7.2).
-3. [ ] Install from the GitHub repository with and without `--sparse .claude-plugin plugin`, and measure the marketplace clone (step 7.4).
+2. [x] `plugin/README.md` and `plugin/LICENSE`.
+3. [ ] Install from the GitHub repository with and without `--sparse .claude-plugin plugin`, and measure the marketplace clone, before the repository goes public.

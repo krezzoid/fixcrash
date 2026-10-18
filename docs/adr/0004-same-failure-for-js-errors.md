@@ -6,20 +6,20 @@
 
 ## Context
 
-- A test reproduces a native crash when it fails with the crash's exception type, at the crash's top app frame, with no test frame above it (`docs/RESEARCH.md` §6, ADR-0002). The hook records both from the event, so the agent can't choose them.
-- A JS error in a React Native app reaches Crashlytics in two shapes (`RESEARCH.md` §7, step 6.3):
+- A test reproduces a native crash when it fails with the crash's exception type, at the crash's top app frame, with no test frame above it (ADR-0002). The hook records both from the event, so the agent can't choose them.
+- A JS error in a React Native app reaches Crashlytics in two shapes (the React Native testbed's crashes, 2026-10-16):
   - **A fatal one is a native crash.** Android: `com.facebook.react.common.JavascriptException`. iOS: `RCTFatalException`. Its message holds the JS error's type, Hermes's message and the JS stack as `<function>@1:<column>` lines: `TypeError: Cannot read property 'url' of undefined, stack:` `parseProfile@1:485277` `anonymous@1:708373`.
     - On Android every fatal JS error lands in one issue, blamed on `ExceptionsManagerModule.reportException`. The blame frame says nothing about the crash. Neither does the issue: parser, engine and render are three events of one issue.
   - **A non-fatal one** (`recordError`, and on iOS the chained copy of a fatal one) is React Native Firebase's `JavaScriptError`. It has the message and frames, `.?anon_0_ (address at index.android.bundle:1:698961)` on Android and `parseProfile (address at <container>/main.jsbundle:1:484854:1)` on iOS. It does not have the JS error's type.
 - A position is a Hermes bytecode offset, on line 1. Only the crashing commit's composed source map (Metro's map composed with the Hermes compiler's) gives a file and line. The names in the event aren't the source's:
   - the Hermes compiler inlines (`anonymous@1:708373` is `prepare`, which it inlined into a timer's closure);
   - async functions run as anonymous generators after their first `await` (`?anon_0_` is `loadHeadline`).
-- What a rebuild gives (step 6.4):
+- What a rebuild gives:
   - The testbed's bundle, Hermes bytecode and composed map rebuilt from the committed sources at another path took 3.5 s with `node_modules` in place. The Android bytecode was byte-identical to the APK's. The iOS bytecode differed in 40 of 1,108,924 bytes. Both maps matched the shipped ones in everything but the absolute paths in `sources`.
   - `metro-symbolicate` turns `parseProfile@1:485277` into `src/profile.ts:15:parseProfile`, `?anon_0_` into `src/inbox.ts:14:loadHeadline`, and the render crash's top frame into `src/TagList.tsx:19:Array.from$argument_1`. A frame's name is its enclosing function in the source, from Metro's function map. It gives no column for these lines. It stops at a `(native):0:0` frame, and can't read iOS's trailing `:1`.
 - What a failing Jest test gives: a thrown error with its `name` (`TypeError`), V8's message, and a stack that Jest maps through Babel's source maps. Files and lines are right. A frame's name is the identifier at the mapped position, not its function: `at url (src/profile.ts:15:62)`, `at title (src/inbox.ts:14:28)`, `at label (src/TagList.tsx:19:25)`.
 - Messages differ by engine ("Cannot read property 'url' of undefined" against "Cannot read properties of undefined (reading 'url')"). The rule never compares them.
-- A test that swaps `Date` for its own (`jest.spyOn(global, 'Date')`) throws the engine scenario's `RangeError` at `src/updates.ts:13`, the line Hermes crashes on. Node doesn't, from any input the app gets. *(Corrected in step 6.7: the app's check also accepts years 0013 to 0031, which V8 rejects too, so a made-up input does throw there on Node. The rule can't tell; the reproducer did.)*
+- A test that swaps `Date` for its own (`jest.spyOn(global, 'Date')`) throws the engine scenario's `RangeError` at `src/updates.ts:13`, the line Hermes crashes on. Node doesn't, from any input the app gets. *(Corrected after the eval, 2026-10-17: the app's check also accepts years 0013 to 0031, which V8 rejects too, so a made-up input does throw there on Node. The rule can't tell; the reproducer did.)*
 - Constraints: proof is enforced in code (rule 1); the crashing version is the one tested (rule 3); crash data is untrusted (rule 4).
 
 ## Decision
@@ -33,11 +33,11 @@
    - has a frame at the expected path and line;
    - has no frame from a test file above it.
 4. When the event has no type (a non-fatal), the type isn't compared, and the report and the PR body say so.
-5. *(Added in step 6.5.)* At the fix's parent, where `verify` runs the test again, the expected line is where the crashing commit's line moved to, through `git diff` of the file. If that line itself changed in between, any line of the file will do there. The crashing commit's run always checks the exact line.
+5. *(Added on 2026-10-17.)* At the fix's parent, where `verify` runs the test again, the expected line is where the crashing commit's line moved to, through `git diff` of the file. If that line itself changed in between, any line of the file will do there. The crashing commit's run always checks the exact line.
 
 Each JS event is its own expected failure: a run names the event it reproduces, since an issue may hold several crashes. On iOS the native crash and its non-fatal copy name the same frame.
 
-**Crashing commit:** the release tag. JS events carry no build stamp (`RESEARCH.md` §7, step 6.3).
+**Crashing commit:** the release tag. JS events carry no build stamp.
 
 ## Options considered
 
@@ -76,7 +76,7 @@ Map Hermes's messages to V8's ("Cannot read property 'x' of undefined" ↔ "Cann
 
 ### D: The source map the release build made
 
-The Android build leaves one in its build directory; an iOS build makes one only if told to. Few teams keep them per release, and the Firebase MCP server has none. A rebuild gives the same mappings (step 6.4). Kept as a later option: a `--sourcemap` flag for teams that archive them.
+The Android build leaves one in its build directory; an iOS build makes one only if told to. Few teams keep them per release, and the Firebase MCP server has none. A rebuild gives the same mappings, as above. Kept as a later option: a `--sourcemap` flag for teams that archive them.
 
 ## Trade-off analysis
 
@@ -92,7 +92,7 @@ A is the existing rule and fails every correct JS test. C trades a structural ch
 
 ## Action items
 
-Done in step 6.5:
+Done on 2026-10-17:
 
 1. [x] The hook records JS positions, the type when present, and the platform, per event; `fixcrash event` shows them.
 2. [x] `fixcrash symbolicate`: build the crashing commit's bundle and map per platform, cache them, run `metro-symbolicate` from the app's `node_modules`.

@@ -1,6 +1,6 @@
 # fixcrash — eval
 
-`/fixcrash:fix` on the seeded crashes of each testbed: Android (`docs/PLAN.md`, step 4), then iOS (step 5.6), then a SwiftUI app (step 5.7.5), then React Native (step 6.7). The details behind each finding are in `docs/RESEARCH.md` §7.
+`/fixcrash:fix` on the seeded crashes of each testbed, run as each platform was built: Android, then iOS, then a SwiftUI app, then React Native. What the findings left open is in [LIMITS.md](LIMITS.md).
 
 # Android
 
@@ -39,12 +39,12 @@ Earlier runs, before fixes they led to:
 
 ## Open
 
-Tracked in `docs/PLAN.md`, deferred list:
+Tracked in [LIMITS.md](LIMITS.md):
 
 - Robolectric in a module without it: for now the report carries the setup as a build-file diff (`docs/adr/0001-test-libraries-the-module-lacks.md`).
 - A NOT REPRODUCED answer with no `fixcrash reproduce` run. Fine with a concrete reason, as here; a lazy answer looks the same.
-- `claude plugin eval` (`RESEARCH.md` §9, question 7): this eval ran by hand, with `eval/metrics.ts`.
-- The share of a real app's top crashes a unit test can reproduce (`RESEARCH.md` §9, question 3).
+- `claude plugin eval`: this eval ran by hand, with `eval/metrics.ts`.
+- The share of a real app's top crashes a unit test can reproduce.
 
 # iOS
 
@@ -112,7 +112,7 @@ Claude Code 2.1.301, `claude-opus-5-5`, firebase-tools 15.32.1, Xcode 27.1 with 
 As for Android and iOS, with these differences:
 
 - **The app.** `testbed/copy-rn.sh <dest>` copies `testbed/react-native` (React Native 0.88 with Hermes, React Native Firebase 26.4) and installs its `node_modules` from npm's cache. Tag `v1.0` is the crashing release; `main` starts 1.1.
-- **The crashes.** They are from step 6.3: the testbed's release builds on an Android emulator and the iOS 27.0 simulator. JS events carry no commit, so tag `v1.0` links version `1.0 (1)` to it.
+- **The crashes.** They were reported on 2026-10-16, from the testbed's release builds on an Android emulator and the iOS 27.0 simulator. JS events carry no commit, so tag `v1.0` links version `1.0 (1)` to it.
   - On Android, parser, render and engine are events of one issue, `JavascriptException` blamed on `ExceptionsManagerModule.reportException`. Async is a non-fatal `JavaScriptError` issue of its own.
   - One more run fixed the iOS parser issue, to cover the iOS bundle.
 - **Runs.** `/fixcrash:triage <Android app id>` came first. Then each scenario ran `/fixcrash:fix <issue> <app id> <the error as triage named it>`, as a user would pick from the triage table: for example, `Cannot read property 'url' of undefined at src/profile.ts:15`.
@@ -143,9 +143,9 @@ Claude Code 2.1.302, `claude-opus-5-5`, firebase-tools 15.32.1, React Native 0.8
 3. **The engine scenario has a path on Node, and only the reproducer's judgment kept it out.**
    - The app's format check accepts years 0013 to 0031, which V8 rejects too: `new Date('0013/01/01 10:00').toISOString()` throws the crash's `RangeError` at `src/updates.ts:13`. fixcrash would have accepted such a test, since the type and the line match, though the backend never sends such a date.
    - The reproducer found it, called it the right line for the wrong reason, and didn't submit it. Its report named the cause (Hermes's date parser), the two ways to reach it (a test on Hermes, or app code that doesn't depend on the engine), and a defensive change, not committed.
-   - As with native frames (Android, finding 1), the same type at the same line is necessary, not sufficient. The step 6.2 claim that Node parses every string the check accepts was wrong (`RESEARCH.md` §7, step 6.7).
+   - As with native frames (Android, finding 1), the same type at the same line is necessary, not sufficient. The testbed's claim that Node parses every string the check accepts was wrong.
 4. **One bug, two platforms, two issues, two pull requests.** The parser crash is one event in Android's shared issue and an iOS issue of its own, and its two sessions opened PR #2 and PR #4 with the same fix. Triage works per app, so it can't see this. Matching JS errors across apps by their symbolicated file and line would.
-5. **The step 6.6 and 6.7 changes to the skills held.**
+5. **The React Native guidance in the skills held.**
    - Each JS error got its own branch (`fixcrash/77ff1260-taglist-19`, `fixcrash/77ff1260-profile-15`), named from the arguments.
    - The async test awaited `loadHeadline` itself.
    - The tests mocked nothing beyond the app's Jest setup. The render test renders `TagList` with the app's own backend data, as the app does.

@@ -6,13 +6,13 @@
 
 ## Context
 
-- On Android, a test reproduces a crash when it fails with the crash's exception type, the event's blame frame is on that throwable's stack, and no test frame is above it (`docs/RESEARCH.md` §6). The type comes from the event's `exceptions` field; the hook records both from the event, so the agent can't choose them.
-- An iOS crash event has no `exceptions` and no build stamp (`RESEARCH.md` §7, step 5.3):
+- On Android, a test reproduces a crash when it fails with the crash's exception type, the event's blame frame is on that throwable's stack, and no test frame is above it. The type comes from the event's `exceptions` field; the hook records both from the event, so the agent can't choose them.
+- An iOS crash event has no `exceptions` and no build stamp (the iOS testbed's crashes, 2026-10-15):
   - the type is the Mach exception in the issue subtitle, `EXC_BREAKPOINT` for every Swift runtime trap; the Swift message ("Unexpectedly found nil …") is nowhere in the event;
   - `blameFrame` has a reliable `symbol`, an unreliable `file` and `line`, and `address`, the crash's offset in the app binary;
   - Crashlytics drops inlined frames. In a Release build the crashing function is often inlined into its caller, and then the caller is the blame frame: the testbed's parser crash at `ProfileParser.parse(_:)` is blamed on `MainViewController.openProfile()`.
 - A unit test runs a Debug build, without inlining. The parser crash's natural test calls `ProfileParser.parse` and never has `openProfile()` on its stack: by today's rule it doesn't reproduce the crash, though it hits the same line with the same input.
-- What a failing iOS test gives (step 5.4): the trap kills the test process; `xcodebuild` says `Crash: Testbed at <some XCTest frame>`; the result bundle holds the crash log (`.ips`) as an attachment of the failed test, with the exception type and every thread's frames, each with its image. The app's code is in the image `<App>.debug.dylib`, the test's in `<TestTarget>`. Both XCTest and Swift Testing behave this way.
+- What a failing iOS test gives, on the testbed: the trap kills the test process; `xcodebuild` says `Crash: Testbed at <some XCTest frame>`; the result bundle holds the crash log (`.ips`) as an attachment of the failed test, with the exception type and every thread's frames, each with its image. The app's code is in the image `<App>.debug.dylib`, the test's in `<TestTarget>`. Both XCTest and Swift Testing behave this way.
 - `atos -i` at the blame frame's `address`, against the dSYM of a Release build of the crashing commit, gives the whole inline chain: `Swift runtime failure: Unexpectedly found nil while unwrapping an Optional value`, `ProfileParser.parse(_:) (ProfileParser.swift:10)`, `MainViewController.openProfile() (MainViewController.swift:50)`. A rebuild of the same commit at another path gets another UUID, but the same machine code (one instruction of 545,000 differed), and `atos` gave the same chains for all three testbed crashes.
 - Constraints: proof is enforced in code (rule 1); the crashing version is the one tested (rule 3); crash data is untrusted (rule 4).
 

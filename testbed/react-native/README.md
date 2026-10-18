@@ -1,6 +1,6 @@
 # React Native testbed
 
-A small React Native app with four seeded JS crashes, built from the Community CLI template (React Native 0.88, Hermes, the New Architecture) with React Native Firebase. fixcrash is developed and evaluated against it (`docs/PLAN.md`, step 6).
+A small React Native app with four seeded JS crashes, built from the Community CLI template (React Native 0.88, Hermes, the New Architecture) with React Native Firebase. fixcrash is developed and evaluated against it ([eval](../../docs/EVAL.md#react-native)).
 
 | Scenario | Screen | Crash | Function | Reported as | Jest-reproducible |
 |----------|--------|-------|----------|-------------|-------------------|
@@ -9,7 +9,7 @@ A small React Native app with four seeded JS crashes, built from the Community C
 | `async` | inbox | `TypeError` after an `await`: the inbox came back empty | `loadHeadline` | a non-fatal: the screen catches it and calls `recordError` | yes, with an `async` test |
 | `engine` | updates | `RangeError` from `toISOString()`: Hermes can't parse `2026/10/16 10:00` | `dayKey` | a native crash, with the JS stack in its message | no: expected outcome is a report, no PR |
 
-A fatal JS error reaches Crashlytics as React Native's native crash: `com.facebook.react.common.JavascriptException` on Android, where all of them share one issue, and `RCTFatalException` on iOS. React Native Firebase's own report of it, with frames, is lost, except on iOS, where it arrives as an extra non-fatal (`docs/RESEARCH.md` §7, step 6.3).
+A fatal JS error reaches Crashlytics as React Native's native crash: `com.facebook.react.common.JavascriptException` on Android, where all of them share one issue, and `RCTFatalException` on iOS. React Native Firebase's own report of it, with frames, is lost, except on iOS, where it arrives as an extra non-fatal.
 
 Why `engine` is out of Jest's reach: Jest runs on Node, whose `Date` parses every time that passes `dayKey`'s format check (checked for every month, day, hour and minute of 15 years). Hermes parses ISO dates (a `T` or a space between date and time) and the forms that start with a weekday, `Fri Oct 16 2026 10:00:00` or `Fri, 16 Oct 2026 10:00:00`, and nothing else (`lib/VM/JSLib/DateUtil.cpp`). The only way to make `dayKey` throw under Node is to replace `Date` in the test, which proves nothing about the app.
 

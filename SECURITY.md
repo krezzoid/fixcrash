@@ -16,7 +16,7 @@ fixcrash reads crash data that anyone who can crash an app can shape, and it run
 - **Writes outside the rules:** a write to Crashlytics other than a note, or a change to an issue's state.
 - **The plugin's own files:** paths built from issue or session ids that leave fixcrash's state directory.
 
-Known limits are listed in [docs/PLAN.md](docs/PLAN.md), under Deferred. For example, the hook recognizes state writes and pull request commands by their text, so it guards against a careless agent, not a hostile one. A new way past a listed limit is still worth a report.
+Known limits are listed in [docs/LIMITS.md](docs/LIMITS.md). For example, the hook recognizes state writes and pull request commands by their text, so it guards against a careless agent, not a hostile one. A new way past a listed limit is still worth a report.
 
 ## Supported versions
 

@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# Copies testbed/ios or testbed/swiftui into a git repository of its own, for the eval (docs/PLAN.md, step 5):
+# Copies testbed/ios or testbed/swiftui into a git repository of its own, for the eval (docs/EVAL.md):
 # the agent works there and can't read the scenario descriptions: README.md and
 # trigger-crash.sh stay behind, and the copy gets a plain README.
 #

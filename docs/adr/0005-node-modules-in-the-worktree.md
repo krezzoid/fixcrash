@@ -6,10 +6,10 @@
 
 ## Context
 
-- `reproduce` and `verify` run tests in fixcrash's own worktree, `.git/fixcrash/worktree`, at the crashing commit, the fix's parent and the fix (`docs/RESEARCH.md` §6). Between runs it is reset with `git checkout --force` and `git clean -fd`, which leave ignored files: Gradle's and Xcode's build caches survive there.
+- `reproduce` and `verify` run tests in fixcrash's own worktree, `.git/fixcrash/worktree`, at the crashing commit, the fix's parent and the fix. Between runs it is reset with `git checkout --force` and `git clean -fd`, which leave ignored files: Gradle's and Xcode's build caches survive there.
 - A React Native app's Jest tests and its bundle build (ADR-0004) need the app's `node_modules` at that commit. `node_modules` is ignored, so a fresh worktree has none.
-- What the testbed showed (step 6.4): `npm ci --offline` in a copy at another path took 3 s and wrote 481 MB, all from npm's cache, which the developer's own installs fill. npm 11 skips packages' install scripts unless they are approved, and the tests and the bundle didn't need them.
-- Metro and Jest ignore every path that has a `.git` directory in it (step 6.5): Metro's file map and Jest's haste map skip version-control directories by a hardcoded pattern. In `.git/fixcrash/worktree` Metro can't hash the entry file ("Failed to get the SHA-1 … not watched"), and Jest finds no tests.
+- What the testbed showed: `npm ci --offline` in a copy at another path took 3 s and wrote 481 MB, all from npm's cache, which the developer's own installs fill. npm 11 skips packages' install scripts unless they are approved, and the tests and the bundle didn't need them.
+- Metro and Jest ignore every path that has a `.git` directory in it: Metro's file map and Jest's haste map skip version-control directories by a hardcoded pattern. In `.git/fixcrash/worktree` Metro can't hash the entry file ("Failed to get the SHA-1 … not watched"), and Jest finds no tests.
 - Rule 8: tests run offline where the build tool allows.
 
 ## Decision
@@ -19,7 +19,7 @@
 1. Before a JS run, fixcrash compares the hash of the commit's `package-lock.json` with the one it recorded for the worktree's `node_modules`. If they differ, or there is no `node_modules`, it runs `npm ci --offline` in the app's directory and records the new hash.
 2. A failed offline install stops the run with a hint: run `npm ci` once in your checkout, which fills npm's cache, then try again. fixcrash doesn't go to the network itself.
 3. Only npm for now. A Yarn or pnpm lockfile stops the run with a message that says so.
-4. *(Added in step 6.5.)* A JS project's worktree is outside `.git`, in the user's cache directory: `${XDG_CACHE_HOME:-~/.cache}/fixcrash/worktrees/<repository directory name>-<first 12 hex digits of the SHA-256 of the git directory's path>`. Logs, the bundle cache, receipts and the lock stay in `.git/fixcrash`. The hook keeps the agent's tools out of `fixcrash/worktrees` as it does out of `.git/fixcrash`. Gradle and Xcode keep `.git/fixcrash/worktree`.
+4. *(Added on 2026-10-17.)* A JS project's worktree is outside `.git`, in the user's cache directory: `${XDG_CACHE_HOME:-~/.cache}/fixcrash/worktrees/<repository directory name>-<first 12 hex digits of the SHA-256 of the git directory's path>`. Logs, the bundle cache, receipts and the lock stay in `.git/fixcrash`. The hook keeps the agent's tools out of `fixcrash/worktrees` as it does out of `.git/fixcrash`. Gradle and Xcode keep `.git/fixcrash/worktree`.
 
 ## Options considered
 
@@ -53,11 +53,11 @@ Saves the reinstall when a run moves between lockfiles and back, at hundreds of 
 
 - Easier: Jest and the bundle build see exactly the crashing commit's dependencies.
 - Harder: Yarn and pnpm apps wait for their own commands (`yarn install --frozen-lockfile --offline`, `pnpm install --frozen-lockfile --offline`).
-- Harder: a JS project's worktree and its `node_modules` live outside the repository, in the cache directory, and are left there until the user deletes them. Deleting them is safe: the next run installs `node_modules` again, also when the bundle is already cached (fixed in step 7.1).
+- Harder: a JS project's worktree and its `node_modules` live outside the repository, in the cache directory, and are left there until the user deletes them. Deleting them is safe: the next run installs `node_modules` again, also when the bundle is already cached.
 - Revisit: with the first Yarn or pnpm app, and if a monorepo hoists `node_modules` above the app's directory.
 
 ## Action items
 
-1. [x] The Jest runner installs `node_modules` in the worktree as above, records the lockfile hash, and hints on a failed offline install (`src/rnbuild.ts`, step 6.5).
+1. [x] The Jest runner installs `node_modules` in the worktree as above, records the lockfile hash, and hints on a failed offline install (`plugin/src/rnbuild.ts`).
 2. [x] Unit tests: the hash check, the reinstall, the unsupported lockfile message (`test/js.test.ts`, `test/rn.test.ts`).
 3. [x] The worktree outside `.git`, and the hook's ban on writes there.
