@@ -154,7 +154,7 @@ test('leaves code and crash metadata alone', () => {
     'crashlyticsSdkVersion: 20.1.1',
     'val x = Foo::class.java; std::vector<int>',
     'getToken() returned null',
-    'projects/357943241138/apps/1:357943241138:android:1411f60e87427d13b59cab/events/6AC6993F022C00012F15CC161C001D46_2272451113638171026',
+    'projects/100000000001/apps/1:100000000001:android:00000000000000aa/events/5EED0000C0DE0000BEEF00000000000A_1000000000000000001',
     'sessionsCount: 3',
   ]) {
     assert.equal(redactText(s), s);

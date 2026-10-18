@@ -23,18 +23,13 @@ Platforms, in order: Android (Kotlin), then iOS (Swift), then React Native.
 
 When you find a limit, or consciously postpone something, add it to `docs/LIMITS.md`.
 
-## Working with Ilya
+## Working in this repository
 
-- Talk in **Russian**. Code, identifiers, commit messages, code comments and docs are in **English**: this is a public repository.
-- Ilya is an experienced engineering leader (Go, TypeScript, AWS, Docker), not a day-to-day mobile developer. Skip general basics. Explain Android/iOS build-tool specifics briefly when they matter to a decision. Be direct about trade-offs and risks.
+- Code, identifiers, commit messages, code comments and docs are in English.
 - Prefer a thin working end-to-end slice over a perfect component.
-- Git workflow:
-  - work on a branch;
-  - propose the commit and wait for "да, коммить";
-  - no `Co-Authored-By` trailer or other attribution lines in commit messages;
-  - **never push**: Ilya merges with `git switch master && git merge --ff-only <branch>` and pushes himself;
-  - a release is a commit the Release workflow makes on master: after one, master needs `git pull --ff-only` before the next merge.
-- The repo commits under `krezzoid@users.noreply.github.com` (repo-local git config). Never commit a personal email address.
+- Work on a branch. Commit, push or open a pull request only when the user asks for it.
+- Never commit a personal email address, or a secret (rule 8).
+- Your own preferences for this project go in `CLAUDE.local.md`, which git ignores.
 
 ## What this is, and what it is not
 

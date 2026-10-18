@@ -1,5 +1,8 @@
 .DS_Store
 
+# Personal instructions for Claude Code in this checkout
+CLAUDE.local.md
+
 # Firebase app config: never committed (CLAUDE.md, rule 8)
 google-services.json
 GoogleService-Info.plist
