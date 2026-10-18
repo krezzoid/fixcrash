@@ -36,6 +36,18 @@ test('the plugin folder holds small text files, no links', () => {
   }
 });
 
+test("the plugin folder carries the license and a README the directory accepts", () => {
+  assert.equal(readFileSync(join(PLUGIN, 'LICENSE'), 'utf8'), readFileSync(join(ROOT, 'LICENSE'), 'utf8'));
+  const readme = readFileSync(join(PLUGIN, 'README.md'), 'utf8');
+  // Anthropic's directory blocks a README under 40 words, not counting code blocks.
+  const words = readme.replace(/^```[\s\S]*?^```/gm, '').split(/\s+/).filter((w) => /\w/.test(w));
+  assert.ok(words.length >= 40, `${words.length} words`);
+  // The README says what the plugin runs: the Firebase MCP server's pinned version among it.
+  const mcp = json('plugin/.mcp.json').mcpServers.firebase.args as string[];
+  const pinned = mcp.find((a) => a.startsWith('firebase-tools@'))!;
+  assert.match(readme, new RegExp(`\`npx -y ${pinned.replace(/\./g, '\\.')} mcp\``));
+});
+
 test('the sources reach no file outside the plugin folder', () => {
   const ts = shipped().map((f) => f.path).filter((p) => p.endsWith('.ts'));
   assert.ok(ts.length > 0);

@@ -9,7 +9,7 @@ A Claude Code plugin that turns a Firebase Crashlytics crash into a **proven** f
 
 If it can't reproduce the crash, it says so: what it tried, what it suspects, and what data is missing. It opens no pull request.
 
-> **Status: evaluated on the Android and iOS testbeds.** Of the Android testbed's three seeded crashes, the two a unit test can reach end in a verified pull request, and the one it can't ends in a report and no pull request, each in under two minutes of agent time for under $1. An earlier run got a pull request through with a test that reached the crash by reflection; such tests are now refused ([docs/EVAL.md](docs/EVAL.md)). On the iOS testbeds, a UIKit app and a SwiftUI app, the same three outcomes held, in one to ten minutes of agent time for under $1 each. Not yet tried on a production app. Not published yet. See [Roadmap](#roadmap).
+> **Status: evaluated on testbeds, not yet on a production app.** On the Android, iOS (UIKit and SwiftUI) and React Native testbeds, every seeded crash a unit test can reach ended in a verified pull request, and every one it can't ended in a report and no pull request, in one to ten minutes of agent time for about $1 or less each. An earlier Android run got a pull request through with a test that reached the crash by reflection; such tests are now refused ([docs/EVAL.md](docs/EVAL.md)). Not published yet. See [Roadmap](#roadmap).
 
 ## Why
 
@@ -103,6 +103,14 @@ Usually it can't, and fixcrash ends with a report:
 - **Writes to Crashlytics are notes only.** fixcrash never changes an issue's state. Closing an issue is a human's call, after a release.
 - **Tests run offline** where the build tool allows, never against production services.
 
+## What it runs, sends and writes
+
+- **Runs:** Google's Firebase MCP server (`firebase-tools` at a pinned version), one hook, and the `fixcrash` command. That command runs `git` and your app's own build and test tools: Gradle and npm offline, `xcodebuild`.
+- **Sends:** Crashlytics reads, with your Firebase login. A branch, a pull request and a Crashlytics note, each only when you say yes. Crash events to Claude, redacted, as tool results. No telemetry, and no server of its own.
+- **Writes:** its state in `.git/fixcrash/`, a React Native app's worktree in `~/.cache/fixcrash/`, and a `fixcrash/…` branch.
+
+The full list, with every command: [plugin/README.md](plugin/README.md#what-fixcrash-runs-sends-and-writes).
+
 ## Requirements
 
 - Claude Code.
@@ -123,12 +131,12 @@ The plugin's options (Firebase app id, project directory, release tag pattern, b
 
 ## Install (once published)
 
-In Claude Code:
-
-```text
-/plugin marketplace add krezzoid/fixcrash
-/plugin install fixcrash@fixcrash
+```bash
+claude plugin marketplace add krezzoid/fixcrash
+claude plugin install fixcrash@fixcrash
 ```
+
+Claude Code asks for the plugin's options when you enable it; [plugin/README.md](plugin/README.md#install) lists them with their defaults.
 
 ## Roadmap
 
@@ -147,7 +155,7 @@ Details: [docs/PLAN.md](docs/PLAN.md). Eval results: [docs/EVAL.md](docs/EVAL.md
 
 ## Contributing
 
-Rules for code in this repository are in [CLAUDE.md](CLAUDE.md). The plugin is developed against `testbed/`, sample apps with seeded crashes that double as the eval.
+Rules for code in this repository are in [CLAUDE.md](CLAUDE.md). The plugin is in `plugin/`, which is all an install copies; it is developed against `testbed/`, sample apps with seeded crashes that double as the eval. Changes are listed in [CHANGELOG.md](CHANGELOG.md). To report a vulnerability, see [SECURITY.md](SECURITY.md).
 
 ## Origin
 
@@ -155,6 +163,6 @@ The rules come from [Veilleur](https://github.com/krezzoid/veilleur-ai), an on-c
 
 ## License
 
-MIT. The `LICENSE` file is added before the first release.
+MIT: see [LICENSE](LICENSE).
 
 fixcrash is not affiliated with Google or Firebase.

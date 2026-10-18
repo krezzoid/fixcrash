@@ -1,9 +1,9 @@
 {
   "name": "fixcrash",
-  "description": "fixcrash: proven fixes for Firebase Crashlytics crashes",
+  "description": "Turns a Firebase Crashlytics crash into a proven fix: a test that fails on the version that crashed, the fix, a green suite, and a pull request only with that proof.",
   "owner": {
     "name": "Ilya Seliverstov",
-    "url": "https://fixcrash.app"
+    "url": "https://krezzoid.com"
   },
   "plugins": [
     {

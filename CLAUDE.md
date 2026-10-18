@@ -58,8 +58,11 @@ plugin/                          the plugin: all an install copies into the user
   bin/fixcrash                   reproduce | verify | symbolicate (RN) | commit-for-version | receipt | pr-body | event | app-id
   src/                           TypeScript behind bin/fixcrash and the hook, run directly by Node 24 (type stripping)
   package.json                   "type": "module" and nothing else: no dependencies, no lockfile, so an install installs no packages
+  README.md, LICENSE             what users and Anthropic's directory read: what fixcrash runs, sends, fetches and writes; LICENSE matches the root's
 test/                            node:test unit tests; test/layout.test.ts keeps the plugin folder self-contained
 package.json, tsconfig.json      dev only (tsc for type checks); no runtime dependencies
+LICENSE, SECURITY.md, CHANGELOG.md  MIT; how to report a vulnerability; changes per version
+.github/workflows/ci.yml         npm test, typecheck and plugin validate --strict on pushes to master and pull requests
 .git/fixcrash/                   state in the user's repo: worktree, receipts/, events/, attempts/, sessions/, logs, cache, lock
 ~/.cache/fixcrash/worktrees/     a JS project's worktree: Metro and Jest skip paths with .git in them (ADR-0005)
 testbed/android/                 sample app with seeded crashes, used as the eval
@@ -134,4 +137,6 @@ claude --plugin-dir plugin          # Claude Code with the plugin loaded from th
 - Unit tests for verify, receipt, hook and redaction touched by the change pass.
 - `claude plugin validate --strict plugin/.claude-plugin/plugin.json` and `claude plugin validate --strict .` pass.
 - At least one testbed scenario still runs end to end.
+- `plugin/README.md` is updated if what the plugin runs, sends, fetches or writes changed: Anthropic's directory scans for anything it doesn't disclose.
+- A change users see gets a line in `CHANGELOG.md`. A release raises `version` in `plugin/.claude-plugin/plugin.json`: installs update only when it changes.
 - `docs/PLAN.md` status is updated if a step moved. A decision gets an ADR in `docs/adr/` (`NNNN-title.md`), not a paragraph in `docs/RESEARCH.md`, which holds verified facts. `README.md` is updated if what it shows changed.

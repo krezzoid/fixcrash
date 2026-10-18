@@ -569,6 +569,25 @@ These end in an honest report. The plugin's value depends on the share of the fi
 - **Node's module type.** Node 24 runs a `.ts` file with `import` syntax as an ES module when no `package.json` says otherwise. If a `package.json` without `"type"` sits above the file, Node prints `MODULE_TYPELESS_PACKAGE_JSON` and parses the file twice, on every run.
 - **Skills under `claude -p`.** The triage skill's `allowed-tools` grants `fixcrash commit-for-version*`, which doesn't cover a compound command (`fixcrash commit-for-version 1.0 1; echo …; git tag; ls`). It was denied, and the skill went on without it.
 
+**2026-10-18: Submitting to the directory, and CI (step 7.2)** (claude.com/docs: `plugins/submit`; code.claude.com/docs: `plugins/manifest-reference`; GitHub's API for the actions' releases)
+
+- **The submission form.**
+  - It takes the repository, the plugin path (`plugin`) and the branch or tag the directory follows (the default branch if empty).
+  - The listing details are read from `plugin.json` and the plugin folder's README.
+  - A data handling step asks:
+    - whether the plugin reads or stores personal data;
+    - whether it sends data to services other than its declared connectors;
+    - how long it keeps data;
+    - whether it is meant for people under 18.
+  - A compliance step asks for a contact email and four acknowledgements.
+  - A private repository can be validated and submitted, with the Claude GitHub App installed and the source uploaded for scanning. It must be public before the listing goes live.
+- **New versions.** The directory scans each new commit on the tracked branch or tag, on a schedule and, with the GitHub push webhook, on push. A passing version is published by a reviewer, or by itself once auto-publish is on. "If your `plugin.json` sets `version`, raise it with every release."
+- **Listing fields in `plugin.json`:** `icon`, `documentationUrl`, `supportUrl`, `privacyPolicyUrl` and `termsOfServiceUrl`. The directory reads them, Claude Code ignores them, and `claude plugin validate` accepts them from 2.1.281. None is required.
+- **`claude plugin validate` needs no login.** `npx -y @anthropic-ai/claude-code@2.1.302 plugin validate --strict` passed with an empty `HOME` and config, on macOS and in a Linux `node:24` container. The npx download is about 133 MB.
+- **Actions' releases.** CI follows their major tags, `@v7`. The releases at the time:
+  - `actions/checkout` v7.0.1 (2026-07-20) is commit `3d3c42e5aac5ba805825da76410c181273ba90b1`;
+  - `actions/setup-node` v7.1.0 (2026-10-08) is commit `949feb2413d6458794dcd2491c4babbbce0c15c1`.
+
 ## 8. Risks
 
 - **Testability of real apps.** Logic living in Activities, Fragments or ViewControllers can't be unit-tested without refactoring. Mitigation: an honest "can't reproduce" path, and measuring the reproducible share early.

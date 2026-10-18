@@ -4,10 +4,12 @@
   "description": "Turns a Firebase Crashlytics crash into a proven fix: a test that fails on the version that crashed, the fix, a green suite, and a pull request only with that proof.",
   "author": {
     "name": "Ilya Seliverstov",
-    "url": "https://github.com/krezzoid"
+    "url": "https://krezzoid.com"
   },
-  "homepage": "https://github.com/krezzoid/fixcrash",
+  "homepage": "https://fixcrash.app",
   "repository": "https://github.com/krezzoid/fixcrash",
+  "documentationUrl": "https://github.com/krezzoid/fixcrash/blob/master/plugin/README.md",
+  "supportUrl": "https://github.com/krezzoid/fixcrash/issues",
   "license": "MIT",
   "keywords": ["crashlytics", "firebase", "android", "ios", "react-native", "crash", "testing"],
   "userConfig": {

@@ -93,5 +93,5 @@ A loses on the install itself. B and C install the same files. C buys one fewer 
 ## Action items
 
 1. [x] Move the plugin into `plugin/`. Point the marketplace entry at it, add the plugin's `package.json`, and read the receipt's version from `plugin.json`. Add `test/layout.test.ts`, and update CLAUDE.md and README.
-2. [ ] `plugin/README.md` and `plugin/LICENSE` (step 7.2).
+2. [x] `plugin/README.md` and `plugin/LICENSE` (step 7.2).
 3. [ ] Install from the GitHub repository with and without `--sparse .claude-plugin plugin`, and measure the marketplace clone (step 7.4).
