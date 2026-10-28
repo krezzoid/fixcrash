@@ -54,6 +54,7 @@ plugin/                          the plugin: all an install copies into the user
   src/                           TypeScript behind bin/fixcrash and the hook, run directly by Node 24 (type stripping)
   package.json                   "type": "module" and nothing else: no dependencies, no lockfile, so an install installs no packages
   README.md, LICENSE             what users and Anthropic's directory read: what fixcrash runs, sends, fetches and writes; LICENSE matches the root's
+  assets/icon.svg                the logo for the directory listing (plugin.json's icon), the same as the website's favicon
 test/                            node:test unit tests; test/layout.test.ts keeps the plugin folder self-contained
 package.json, tsconfig.json      dev only (tsc for type checks); no runtime dependencies
 LICENSE, SECURITY.md, CHANGELOG.md  MIT; how to report a vulnerability; changes per version
