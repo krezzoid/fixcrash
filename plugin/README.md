@@ -77,7 +77,7 @@ Each [release](https://github.com/krezzoid/fixcrash/releases) also carries the p
 - **In your repository's git directory, `.git/fixcrash/`:**
   - a worktree for Gradle and Xcode runs, and build caches;
   - receipts of verified fixes;
-  - the redacted events and expected failures;
+  - for each crash issue, its title and what its events say a test must reproduce: the exception type and frame, where the crash is in the shipped build (iOS and React Native), and the app versions. Not the events themselves: no messages, logs, custom keys, breadcrumbs or user fields;
   - attempt counts, session markers and logs.
 - **In your cache directory, `~/.cache/fixcrash/worktrees/`** (or `$XDG_CACHE_HOME`): a React Native app's worktree, with its `node_modules`. It can take hundreds of MB, and deleting it is safe.
 - **In your checkout:** a `fixcrash/…` branch with the test and the fix, which Claude writes and commits. `fixcrash reproduce` and `fixcrash verify` run in their own worktree and never change your checkout.

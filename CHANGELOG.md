@@ -4,6 +4,10 @@ Versions follow [semantic versioning](https://semver.org). The version is `versi
 
 ## Unreleased
 
+### Changed
+
+- The plugin's README says what fixcrash keeps per crash issue in `.git/fixcrash/`: the expected failure and the versions, not the events.
+
 ## 0.1.2 (2026-10-28)
 
 ### Added
