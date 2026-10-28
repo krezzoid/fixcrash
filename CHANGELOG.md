@@ -4,6 +4,8 @@ Versions follow [semantic versioning](https://semver.org). The version is `versi
 
 ## Unreleased
 
+## 0.1.2 (2026-10-28)
+
 ### Added
 
 - An icon for the plugin's listing in Anthropic's directory: fixcrash's logo, `assets/icon.svg`, set as `icon` in `plugin.json`.

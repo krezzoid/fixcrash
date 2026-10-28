@@ -1,6 +1,6 @@
 {
   "name": "fixcrash",
-  "version": "0.1.1",
+  "version": "0.1.2",
   "description": "Turns a Firebase Crashlytics crash into a proven fix: a test that fails on the version that crashed, the fix, a green suite, and a pull request only with that proof.",
   "author": {
     "name": "Ilya Seliverstov",
