@@ -6,6 +6,7 @@ Versions follow [semantic versioning](https://semver.org). The version is `versi
 
 ### Changed
 
+- The icon for the directory listing is a 1024 px PNG, `assets/icon.png`: the directory showed no icon for the SVG.
 - The build tools fixcrash starts inherit the environment as it is. fixcrash reads `JAVA_HOME`, `DEVELOPER_DIR`, `XDG_CACHE_HOME` and its own `FIXCRASH_XCODE_*` by name, and no longer copies the whole environment.
 
 ## 0.1.3 (2026-10-28)
