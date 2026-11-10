@@ -27,13 +27,31 @@ test('the plugin folder sets ES modules and has no packages to install', () => {
   assert.deepEqual(lockfiles, []);
 });
 
-test('the plugin folder holds small text files, no links', () => {
+const PNG_SIGNATURE = Buffer.from([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a]);
+
+// The directory reads text files under 256 KiB and complete images; any other binary is held for a reviewer.
+test('the plugin folder holds small text files and PNG images, no links', () => {
   for (const { mode, path } of shipped()) {
     assert.notEqual(mode, '120000', `${path} is a symbolic link`);
     const bytes = readFileSync(join(ROOT, path));
     assert.ok(bytes.length < 256 * 1024, `${path} is 256 KiB or more`);
-    assert.equal(bytes.includes(0), false, `${path} is binary`);
+    if (path.endsWith('.png')) {
+      assert.ok(bytes.subarray(0, 8).equals(PNG_SIGNATURE), `${path} is no PNG`);
+      assert.equal(bytes.subarray(-8, -4).toString('latin1'), 'IEND', `${path} is cut short`);
+    } else {
+      assert.equal(bytes.includes(0), false, `${path} is binary`);
+    }
   }
+});
+
+test("the listing icon is a square PNG of 512 px or more, inside the plugin", () => {
+  const icon = json('plugin/.claude-plugin/plugin.json').icon as string;
+  assert.match(icon, /^\.\/[\w/-]+\.png$/);
+  assert.ok(shipped().some((f) => f.path === join('plugin', icon)), `${icon} is not committed`);
+  const bytes = readFileSync(join(PLUGIN, icon));
+  const [width, height] = [bytes.readUInt32BE(16), bytes.readUInt32BE(20)];
+  assert.equal(width, height);
+  assert.ok(width >= 512 && width <= 2048, `${width} px`);
 });
 
 test("the plugin folder carries the license and a README the directory accepts", () => {
