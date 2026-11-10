@@ -226,11 +226,11 @@ export function parseSymbolicated(output: string, frames: JsPosition[], projectD
 }
 
 /** Runs the app's own `metro-symbolicate` on the event's frames. Throws when it can't. */
-export function symbolicate(projectDir: string, map: string, frames: JsPosition[], env: NodeJS.ProcessEnv): SymbolicatedFrame[] {
+export function symbolicate(projectDir: string, map: string, frames: JsPosition[]): SymbolicatedFrame[] {
   if (!canSymbolicate(projectDir)) throw new Error(`no metro-symbolicate in ${projectDir}/node_modules`);
   // metro-symbolicate stops at line 0; built-ins are already left out of the frames.
   const input = frames.map((p) => `${p.fn}@${Math.max(p.line, 1)}:${p.column}`).join('\n');
-  const r = spawnSync('node', [SYMBOLICATOR, map], { cwd: projectDir, env, input: `${input}\n`, encoding: 'utf8', timeout: 120_000 });
+  const r = spawnSync('node', [SYMBOLICATOR, map], { cwd: projectDir, input: `${input}\n`, encoding: 'utf8', timeout: 120_000 });
   if (r.status !== 0) throw new Error(`metro-symbolicate failed: ${(r.stderr || r.stdout || String(r.error)).trim().slice(0, 300)}`);
   return parseSymbolicated(r.stdout, frames, projectDir);
 }

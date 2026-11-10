@@ -54,8 +54,11 @@ export interface Runner {
   inlineFrames?(dirs: RunDirs, site: CrashSite): Frame[];
   /** Untracked files the build needs (e.g. `local.properties`), by name, copied from the checkout. */
   localFiles: string[];
-  /** Extra environment for the commands, and a line saying why, or undefined. */
-  environment(env: NodeJS.ProcessEnv): { env: Record<string, string>; note: string } | undefined;
+  /**
+   * Sets what the commands need in this process's environment, which they inherit,
+   * and returns a line saying why, or undefined when it set nothing.
+   */
+  environment(): { note: string } | undefined;
   /** A hint for a failed command, from its output. */
   hint(output: string): string | undefined;
 }
@@ -119,9 +122,9 @@ function gradleReports(projectDir: string): string[] {
 }
 
 /** A JDK for Gradle when neither JAVA_HOME nor a working `java` is set: Android Studio's bundled one. */
-function androidStudioJdk(env: NodeJS.ProcessEnv): string | undefined {
-  if (env.JAVA_HOME) return undefined;
-  const java = spawnSync('java', ['-version'], { env, stdio: 'ignore' });
+function androidStudioJdk(): string | undefined {
+  if (process.env.JAVA_HOME) return undefined;
+  const java = spawnSync('java', ['-version'], { stdio: 'ignore' });
   if (java.status === 0) return undefined;
   const home = homedir();
   const candidates = [
@@ -184,9 +187,10 @@ export const gradle: Runner = {
 
   localFiles: ['local.properties', 'google-services.json'],
 
-  environment(env) {
-    const jdk = androidStudioJdk(env);
-    return jdk ? { env: { JAVA_HOME: jdk }, note: `JAVA_HOME is not set: using Android Studio's JDK, ${jdk}` } : undefined;
+  environment() {
+    const jdk = androidStudioJdk();
+    if (jdk) process.env.JAVA_HOME = jdk;
+    return jdk ? { note: `JAVA_HOME is not set: using Android Studio's JDK, ${jdk}` } : undefined;
   },
 
   hint(output) {

@@ -36,10 +36,10 @@ test('tells a test file\'s target: its synchronized folder, else the nearest *Te
 });
 
 test('picks the scheme: the setting, the only one, or the one named like the project', () => {
-  assert.equal(pickScheme(['App'], PROJECT, {}), 'App');
-  assert.equal(pickScheme(['App', 'App Staging'], PROJECT, {}), 'App');
-  assert.equal(pickScheme(['Alpha', 'Beta'], PROJECT, {}), undefined);
-  assert.equal(pickScheme(['Alpha', 'Beta'], PROJECT, { FIXCRASH_XCODE_SCHEME: 'Beta' }), 'Beta');
+  assert.equal(pickScheme(['App'], PROJECT), 'App');
+  assert.equal(pickScheme(['App', 'App Staging'], PROJECT), 'App');
+  assert.equal(pickScheme(['Alpha', 'Beta'], PROJECT), undefined);
+  assert.equal(pickScheme(['Alpha', 'Beta'], PROJECT, 'Beta'), 'Beta');
 });
 
 test('picks a booted iPhone, else an iPhone on the newest iOS', () => {

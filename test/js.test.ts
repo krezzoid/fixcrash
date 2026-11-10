@@ -216,7 +216,7 @@ test("follows the crash's line to the fix's parent, or keeps only its file when 
   assert.equal(movedLine(dir, base, changed, 'src/a.ts', 3), undefined);
   assert.equal(movedLine(dir, base, gone, 'src/a.ts', 3), undefined);
 
-  const p: Project = { root: dir, common: join(dir, '.git'), projectDir: '', runner: jest, env: {}, toProject: (f) => f };
+  const p: Project = { root: dir, common: join(dir, '.git'), projectDir: '', runner: jest, toProject: (f) => f };
   const expected: Expected = {
     exception: 'TypeError', frame: 'src/a.ts:3', js: { platform: 'android', typed: true, frames: [], source: { file: 'src/a.ts', line: 3, fn: 'f' } },
   };
@@ -236,7 +236,7 @@ test("follows the crash's line to the fix's parent, or keeps only its file when 
 // --- Projects and worktrees ---------------------------------------------------------
 
 const project = (runner: Project['runner']): Project => ({
-  root: '/work/app', common: '/work/app/.git', projectDir: '', runner, env: {}, toProject: (p) => p,
+  root: '/work/app', common: '/work/app/.git', projectDir: '', runner, toProject: (p) => p,
 });
 
 test('a JS error goes to Jest and a native crash elsewhere, each with a message that says where', () => {

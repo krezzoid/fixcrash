@@ -181,8 +181,8 @@ function schemesIn(projectDir: string, container: XcodeContainer): string[] {
 }
 
 /** The shared scheme to test with: `FIXCRASH_XCODE_SCHEME`, the only one, or the one named like the container. */
-export function pickScheme(schemes: string[], container: XcodeContainer, env: NodeJS.ProcessEnv): string | undefined {
-  if (env.FIXCRASH_XCODE_SCHEME) return env.FIXCRASH_XCODE_SCHEME;
+export function pickScheme(schemes: string[], container: XcodeContainer, override?: string): string | undefined {
+  if (override) return override;
   if (schemes.length === 1) return schemes[0];
   const named = container.path.replace(/\.(xcworkspace|xcodeproj)$/, '');
   return schemes.includes(named) ? named : undefined;
@@ -211,22 +211,27 @@ export function pickSimulator(json: string): string | undefined {
 }
 
 /** Xcode's developer directory when `xcode-select` points at the Command Line Tools, which have no xcodebuild. */
-function developerDir(env: NodeJS.ProcessEnv): string | undefined {
-  if (env.DEVELOPER_DIR) return undefined;
-  const selected = spawnSync('xcode-select', ['-p'], { env, encoding: 'utf8' });
+function developerDir(): string | undefined {
+  if (process.env.DEVELOPER_DIR) return undefined;
+  const selected = spawnSync('xcode-select', ['-p'], { encoding: 'utf8' });
   const path = selected.status === 0 ? selected.stdout.trim() : '';
   if (path && !path.includes('CommandLineTools')) return undefined;
   return existsSync(XCODE_DEVELOPER_DIR) ? XCODE_DEVELOPER_DIR : undefined;
 }
 
-/** The environment for fixcrash's own xcrun calls. */
-function xcodeEnv(): NodeJS.ProcessEnv {
-  const dir = developerDir(process.env);
-  return dir ? { ...process.env, DEVELOPER_DIR: dir } : process.env;
+/**
+ * Points this process, and so the commands it starts, at Xcode when `xcode-select` doesn't.
+ * Commands inherit the environment: fixcrash names the variables it reads and sets, and copies none.
+ */
+function useXcode(): string | undefined {
+  const dir = developerDir();
+  if (dir) process.env.DEVELOPER_DIR = dir;
+  return dir;
 }
 
-function xcrun(args: string[], env: NodeJS.ProcessEnv): string {
-  const r = spawnSync('xcrun', args, { env, encoding: 'utf8', maxBuffer: 256 * 1024 * 1024 });
+function xcrun(args: string[]): string {
+  useXcode();
+  const r = spawnSync('xcrun', args, { encoding: 'utf8', maxBuffer: 256 * 1024 * 1024 });
   if (r.status !== 0) throw new Error(`xcrun ${args.slice(0, 3).join(' ')} failed: ${(r.stderr || r.error?.message || '').trim().slice(0, 300)}`);
   return r.stdout;
 }
@@ -335,23 +340,23 @@ export function resultBundles(out: string): string[] {
 }
 
 /** The test cases in a run's result bundle, with each crashed test's crash log parsed; none when no bundle can be read. */
-function readResults(out: string, env: NodeJS.ProcessEnv): TestCase[] {
+function readResults(out: string): TestCase[] {
   for (const bundle of resultBundles(out)) {
     let tree: { testNodes?: TestNode[] };
     try {
-      tree = JSON.parse(xcrun(['xcresulttool', 'get', 'test-results', 'tests', '--path', bundle], env));
+      tree = JSON.parse(xcrun(['xcresulttool', 'get', 'test-results', 'tests', '--path', bundle]));
     } catch {
       continue;
     }
-    return withCrashLogs(testCasesOf(tree), bundle, out, env);
+    return withCrashLogs(testCasesOf(tree), bundle, out);
   }
   return [];
 }
 
-function withCrashLogs(cases: XcodeTestCase[], bundle: string, out: string, env: NodeJS.ProcessEnv): TestCase[] {
+function withCrashLogs(cases: XcodeTestCase[], bundle: string, out: string): TestCase[] {
   if (!cases.some((c) => c.status === 'failed')) return cases;
   const attachments = join(out, 'attachments');
-  xcrun(['xcresulttool', 'export', 'attachments', '--path', bundle, '--output-path', attachments], env);
+  xcrun(['xcresulttool', 'export', 'attachments', '--path', bundle, '--output-path', attachments]);
   const manifest = join(attachments, 'manifest.json');
   const logs = existsSync(manifest) ? crashLogsOf(JSON.parse(readFileSync(manifest, 'utf8'))) : new Map<string, string>();
   for (const c of cases) {
@@ -397,7 +402,7 @@ export function xcodebuild(projectDir: string): Runner {
   let destination: string | undefined;
   const schemeArgs = (): string[] => {
     const schemes = schemesIn(projectDir, container);
-    const scheme = pickScheme(schemes, container, process.env);
+    const scheme = pickScheme(schemes, container, process.env.FIXCRASH_XCODE_SCHEME);
     if (!scheme) {
       throw new Error(`cannot tell which scheme to test (shared schemes: ${schemes.join(', ') || 'none'}): set FIXCRASH_XCODE_SCHEME`);
     }
@@ -405,11 +410,11 @@ export function xcodebuild(projectDir: string): Runner {
   };
   const derivedData = (dirs: RunDirs) => join(dirs.cache, 'DerivedData');
   const commonArgs = (dirs: RunDirs): string[] => {
-    const env = xcodeEnv();
     const scheme = schemeArgs();
     if (!destination) {
-      const udid = env.FIXCRASH_XCODE_DESTINATION ? undefined : pickSimulator(xcrun(['simctl', 'list', 'devices', 'available', '--json'], env));
-      destination = env.FIXCRASH_XCODE_DESTINATION ?? (udid ? `id=${udid}` : undefined);
+      const chosen = process.env.FIXCRASH_XCODE_DESTINATION;
+      const udid = chosen ? undefined : pickSimulator(xcrun(['simctl', 'list', 'devices', 'available', '--json']));
+      destination = chosen ?? (udid ? `id=${udid}` : undefined);
       if (!destination) {
         throw new Error('no iPhone simulator: install an iOS runtime (xcodebuild -downloadPlatform iOS), or set FIXCRASH_XCODE_DESTINATION');
       }
@@ -470,7 +475,7 @@ export function xcodebuild(projectDir: string): Runner {
       // Results go to the run's own directory, never into the project.
     },
 
-    results: (_project, dirs) => readResults(dirs.out, xcodeEnv()),
+    results: (_project, dirs) => readResults(dirs.out),
 
     releaseSteps(dirs, site): Step[] {
       // The arm64 slice is enough: the crash came from it. A device build needs no signing to be symbolicated.
@@ -489,7 +494,7 @@ export function xcodebuild(projectDir: string): Runner {
       const dsym = [`${site.image}.app.dSYM`, `${site.image}.framework.dSYM`].map((n) => join(products, n)).find((p) => existsSync(p));
       if (!dsym) throw new Error(`no debug symbols for ${site.image} in the release build (${products})`);
       const dwarf = join(dsym, 'Contents', 'Resources', 'DWARF', site.image);
-      return parseAtos(xcrun(['atos', '-arch', 'arm64', '-o', dwarf, '--offset', '-i', `0x${site.address.toString(16)}`], xcodeEnv()));
+      return parseAtos(xcrun(['atos', '-arch', 'arm64', '-o', dwarf, '--offset', '-i', `0x${site.address.toString(16)}`]));
     },
 
     testImages(testFiles) {
@@ -500,9 +505,9 @@ export function xcodebuild(projectDir: string): Runner {
 
     localFiles: ['GoogleService-Info.plist'],
 
-    environment(env) {
-      const dir = developerDir(env);
-      return dir ? { env: { DEVELOPER_DIR: dir }, note: `xcode-select points at the Command Line Tools: using ${dir}` } : undefined;
+    environment() {
+      const dir = useXcode();
+      return dir ? { note: `xcode-select points at the Command Line Tools: using ${dir}` } : undefined;
     },
 
     hint(output) {

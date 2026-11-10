@@ -42,8 +42,7 @@ export interface Project {
   /** The build tool's directory, relative to the repository root ('' at the root). */
   projectDir: string;
   runner: Runner;
-  env: NodeJS.ProcessEnv;
-  /** Why the environment was extended, for the log. */
+  /** Why the runner changed the environment its commands inherit, for the log. */
   envNote?: string;
   /** A repository path relative to the project directory, or undefined if outside it. */
   toProject: (repoPath: string) => string | undefined;
@@ -69,14 +68,12 @@ export function openProject(cwd: string, projectDirOption: string | undefined, r
   if (!runner) {
     throw new VerifyError(`no supported build tool in ${projectDir || '.'} (looked for: gradlew, *.xcworkspace, *.xcodeproj, a package.json with Jest). Pass --project-dir if the app is in a subdirectory`);
   }
-  const env = { ...process.env };
-  const extra = runner.environment(env);
-  if (extra) Object.assign(env, extra.env);
+  const extra = runner.environment();
   const toProject = (p: string) => {
     if (projectDir === '') return p;
     return p.startsWith(`${projectDir}/`) ? p.slice(projectDir.length + 1) : undefined;
   };
-  return { root, common: g.commonDir(cwd), projectDir, runner, env, envNote: extra?.note, toProject };
+  return { root, common: g.commonDir(cwd), projectDir, runner, envNote: extra?.note, toProject };
 }
 
 /** A JS error is reproduced with Jest at the app's root, a native crash with the native runners (ADR-0004). */
@@ -191,7 +188,7 @@ interface CommandResult {
 function runAt(
   ctx: RunContext, label: string, commit: string, withOverlay: boolean, stepsFor: (dirs: RunDirs) => Step[],
 ): CommandResult {
-  const { root, common, projectDir, runner, env } = ctx.project;
+  const { root, common, projectDir, runner } = ctx.project;
   g.prepareWorktree(root, ctx.worktree, commit);
   const project = join(ctx.worktree, projectDir);
   if (!existsSync(project)) throw new VerifyError(`${projectDir || '.'} does not exist at ${short(commit)}`);
@@ -239,7 +236,7 @@ function runAt(
     const exec = (argv: string[], timeout: number): boolean => {
       command = argv;
       writeFileSync(fd, `\n$ ${argv.join(' ')}\n\n`);
-      const r = spawnSync(argv[0]!, argv.slice(1), { cwd: project, env, stdio: ['ignore', fd, fd], timeout });
+      const r = spawnSync(argv[0]!, argv.slice(1), { cwd: project, stdio: ['ignore', fd, fd], timeout });
       const timedOut = (r.error as NodeJS.ErrnoException | undefined)?.code === 'ETIMEDOUT';
       if (r.error && !timedOut) throw new VerifyError(`cannot run ${argv[0]}: ${r.error.message}`);
       exitCode = r.status;
@@ -329,7 +326,7 @@ export function resolveSite(ctx: RunContext, base: string): SiteResolution {
  * positions mean nothing without the map.
  */
 export function resolveJsSite(ctx: RunContext, base: string): SiteResolution {
-  const { runner, common, projectDir, env } = ctx.project;
+  const { runner, common, projectDir } = ctx.project;
   const js = ctx.expected.js!;
   const out = join(stateDir(common), 'cache', runner.name, 'bundles', `${base}-${js.platform}`);
   const map = bundleMap(out);
@@ -351,7 +348,7 @@ export function resolveJsSite(ctx: RunContext, base: string): SiteResolution {
   }
   let frames;
   try {
-    frames = symbolicate(project, map, js.frames, env);
+    frames = symbolicate(project, map, js.frames);
   } catch (e) {
     throw new VerifyError((e as Error).message);
   }

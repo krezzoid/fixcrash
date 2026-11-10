@@ -4,6 +4,10 @@ Versions follow [semantic versioning](https://semver.org). The version is `versi
 
 ## Unreleased
 
+### Changed
+
+- The build tools fixcrash starts inherit the environment as it is. fixcrash reads `JAVA_HOME`, `DEVELOPER_DIR`, `XDG_CACHE_HOME` and its own `FIXCRASH_XCODE_*` by name, and no longer copies the whole environment.
+
 ## 0.1.3 (2026-10-28)
 
 ### Changed
