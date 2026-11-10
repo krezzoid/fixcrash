@@ -4,6 +4,8 @@ Versions follow [semantic versioning](https://semver.org). The version is `versi
 
 ## Unreleased
 
+## 0.1.4 (2026-11-10)
+
 ### Changed
 
 - The icon for the directory listing is a 1024 px PNG, `assets/icon.png`: the directory showed no icon for the SVG.
